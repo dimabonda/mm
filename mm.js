@@ -1,7 +1,16 @@
 const ObjectID    = require("mongodb").ObjectID;
+
 module.exports = db => {
+    const identityMap = {}
     class Savable {
         constructor(obj, empty=false){
+            if (obj && obj._id){ 
+                if (obj._id.toString() in identityMap){
+                    return identityMap[obj._id]
+                }
+            }
+
+
             this._id    = null
             this._class = this.__proto__.constructor.name
             this._empty = true
@@ -29,8 +38,6 @@ module.exports = db => {
                 }
             }
 
-
-
             for (const key in obj) this[key] = obj[key]   
 
             convertSavables(this)
@@ -55,7 +62,10 @@ module.exports = db => {
                         if (!data){
                             err(new ReferenceError('Document Not Found'))
                         }
+                        console.log('load', this)
                         this.populate(data)
+                        console.log('caching in await', this._id)
+                        identityMap[this._id.toString()] = this
                         cb(this)
                     })
                     return this
@@ -79,7 +89,7 @@ module.exports = db => {
                     if (obj[key] && typeof obj[key] === 'object'){
                         if (obj[key] instanceof Savable){
                             if (!(obj[key]._id)){
-                                await obj[key].save().catch(err => console.log('ERR', ERR))
+                                await obj[key].save().catch(err => console.log('ERR', err))
                             }
                             result[key] = {_id: obj[key]._id, _class: obj[key]._class}
                         }
@@ -99,10 +109,13 @@ module.exports = db => {
             if (!this._id){ //first time
                 const { insertedId } = await this.collection.insertOne(toSave)
                 this._id = insertedId
+
             }
             else { //update
                 await this.collection.updateOne({_id: this._id},  {$set: toSave}).catch(err => console.log('UPDATE ERR', err))
             }
+            console.log('caching in save', this._id)
+            identityMap[this._id.toString()] = this
         }
 
         static isSavable(obj){
