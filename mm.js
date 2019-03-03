@@ -1,22 +1,19 @@
 const ObjectID    = require("mongodb").ObjectID;
+const asynchronize = require('./asynchronize').asynchronize
 
 module.exports = db => {
     const identityMap = {}
     class Savable {
         constructor(obj, empty=false){
-            if (obj && obj._id){ 
-                if (obj._id.toString() in identityMap){
-                    return identityMap[obj._id]
-                }
-            }
+            //TODO check type for return right class 
+            if ((obj && obj._id) && (obj._id.toString() in identityMap)) return identityMap[obj._id]
 
 
             this._id    = null
             this._class = this.__proto__.constructor.name
             this._empty = true
 
-            Savable.classes                                  = Savable.classes || {}
-            Savable.classes[this.__proto__.constructor.name] = this.__proto__.constructor
+            Savable.addClass(this.__proto__.constructor)
 
             if (obj){
                 this.populate(obj)
@@ -58,13 +55,11 @@ module.exports = db => {
                     if (!this._id)    err(new ReferenceError('Id is empty'))
                     if (!this._class) err(new ReferenceError('Class is empty'))
 
-                    this.collection.findOne({_id: this._id}).then( data => {
+                    this.collection.findOne(_id).then( data => {
                         if (!data){
                             err(new ReferenceError('Document Not Found'))
                         }
-                        console.log('load', this)
                         this.populate(data)
-                        console.log('caching in await', this._id)
                         identityMap[this._id.toString()] = this
                         cb(this)
                     })
@@ -114,7 +109,6 @@ module.exports = db => {
             else { //update
                 await this.collection.updateOne({_id: this._id},  {$set: toSave}).catch(err => console.log('UPDATE ERR', err))
             }
-            console.log('caching in save', this._id)
             identityMap[this._id.toString()] = this
         }
 
@@ -123,14 +117,54 @@ module.exports = db => {
             return obj && obj._id && obj._class
         }
 
-        static newSavable(obj){
+        static newSavable(obj, empty=true){
             let className = obj._class || "Savable"
-            if (obj instanceof Savable.classes[className]){
+            if (obj.__proto__.constructor === Savable.classes[className]){
                 return obj
             }
             
-            return new Savable.classes[className](obj, true)
+            return new Savable.classes[className](obj, empty)
+        }
+
+        static addClass(_class){
+            Savable.classes[_class.name] = _class
+        }
+
+
+        static get m(){
+            return new Proxy({}, {
+                get(obj, _class){
+                    if (_class in obj){
+                        return obj[_class]
+                    }
+
+                    return  obj[_class] = {
+                        * find(query, projection){
+                            let cursor = db.collection(_class).find(query, projection)
+                            let cursorGen = asynchronize({s: cursor.stream(), chunkEventName: 'data', endEventName: 'close'})
+                            for (const pObj of cursorGen()){
+                                yield new Promise((ok, fail) => 
+                                    pObj.then(obj => ok(Savable.newSavable(obj, false)), 
+                                              err => fail(err)))
+                            }
+                        },
+                        async findOne(query, projection){
+                            let result = await db.collection(_class).findOne(query, projection)
+                            return Savable.newSavable(result, false)
+                        }
+                    }
+                },
+
+                set(obj, propName, value){
+                }
+            })
+
+
+
         }
     }
+
+    Savable.classes                                  = {Savable}
+
     return Savable
 }
