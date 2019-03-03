@@ -1,4 +1,5 @@
 const MongoClient = require("mongodb").MongoClient;
+const ObjectID    = require("mongodb").ObjectID;
 const mm          = require('./mm.js')
 const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
  
@@ -43,16 +44,36 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
     //}
 
     let person = new Savable()
-    person._id = '5c79f5a952dd4e30b3e65a37';
+    person._id = ObjectID('5c7bd603ce3cbc409978203e');
     console.log(person)
+
+    let child = new Savable({
+        name: 'New One Child',
+        surname: 'Silniy',
+        phones: ['105', '1000506']
+    });
+
+    console.log(await person)
+    console.log(await person.children[10])
+    console.log(await person.children[10].father)
+    console.log(await person.children[10].father.children[9])
+    //console.log(await person.children[1])
+    ;(await person).children.push(child)
+    child.father = person
+
+    //console.log(person)
+    //console.log(child)
+
+    await person.save()
+
     //let obj = {
         //then(cb){
             //process.nextTick(() => cb(obj))
         //}
     //}
     //console.log(await obj)
-    console.log('empty await', await person)//.then(p => console.log(p))
-    console.log('sub await', (await person.children[0]))//.then(p => console.log(p))
+    //console.log('empty await', await person)//.then(p => console.log(p))
+    //console.log('sub await', (await person.children[0]))//.then(p => console.log(p))
 
 
 

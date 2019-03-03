@@ -1,24 +1,39 @@
-const ObjectID  = require('mongodb').ObjectID
-
+const ObjectID    = require("mongodb").ObjectID;
 module.exports = db => {
     class Savable {
-        constructor(obj){
-            console.log('CONSTRUCTOR')
+        constructor(obj, empty=false){
             this._id    = null
             this._class = this.__proto__.constructor.name
             this._empty = true
 
-            Savable.classes = Savable.classes || []
-            Savable.classes.push(this.__proto__.constructor)
+            Savable.classes                                  = Savable.classes || {}
+            Savable.classes[this.__proto__.constructor.name] = this.__proto__.constructor
 
-            this.populate(obj)
+            if (obj){
+                this.populate(obj)
+                this._empty = empty
+            }
         }
 
-        populate(obj){
-            if (obj){
-                for (const key in obj) this[key] = obj[key]
-                this._empty = false
+
+
+        populate(obj, empty){
+            function convertSavables(obj){
+                for (const key in obj){
+                    if (Savable.isSavable(obj[key])){
+                        obj[key] = Savable.newSavable(obj[key])
+                    }
+                    else if (typeof obj[key] === 'object'){
+                        convertSavables(obj[key])
+                    }
+                }
             }
+
+
+
+            for (const key in obj) this[key] = obj[key]   
+
+            convertSavables(this)
         }
 
         get _empty(){
@@ -33,10 +48,10 @@ module.exports = db => {
                         return this
                     }
                     delete this.then
-                    if (!this._id) err(new ReferenceError('Id is empty'))
+                    if (!this._id)    err(new ReferenceError('Id is empty'))
                     if (!this._class) err(new ReferenceError('Class is empty'))
 
-                    this.collection.findOne({_id: ObjectID(this._id)}).then( data => {
+                    this.collection.findOne({_id: this._id}).then( data => {
                         if (!data){
                             err(new ReferenceError('Document Not Found'))
                         }
@@ -64,12 +79,11 @@ module.exports = db => {
                     if (obj[key] && typeof obj[key] === 'object'){
                         if (obj[key] instanceof Savable){
                             if (!(obj[key]._id)){
-                                await obj[key].save()
+                                await obj[key].save().catch(err => console.log('ERR', ERR))
                             }
                             result[key] = {_id: obj[key]._id, _class: obj[key]._class}
                         }
                         else {
-                            console.log('recursion', obj, key)
                             result[key] = await recursiveSlicer(obj[key])
                         }
                     }
@@ -80,18 +94,29 @@ module.exports = db => {
                 return result;
             }
 
-            const toSave = await recursiveSlicer(this)
-            console.log(toSave)
+            const {_id, _empty, then, ...toSave} = await recursiveSlicer(this)
 
             if (!this._id){ //first time
-                delete toSave._id
-                delete toSave._empty
                 const { insertedId } = await this.collection.insertOne(toSave)
                 this._id = insertedId
             }
-            else { //updateOne
-                this.collection.updateOne(toSave, {_id: this._id})
+            else { //update
+                await this.collection.updateOne({_id: this._id},  {$set: toSave}).catch(err => console.log('UPDATE ERR', err))
             }
+        }
+
+        static isSavable(obj){
+            //console.log(obj._id, obj._class)
+            return obj && obj._id && obj._class
+        }
+
+        static newSavable(obj){
+            let className = obj._class || "Savable"
+            if (obj instanceof Savable.classes[className]){
+                return obj
+            }
+            
+            return new Savable.classes[className](obj, true)
         }
     }
     return Savable
