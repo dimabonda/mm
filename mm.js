@@ -71,6 +71,10 @@ module.exports = db => {
             }
         }
 
+        get createdAt(){
+            return this._id ? new Date(this._id.getTimestamp()) : null
+        }
+
         get collection(){
             return db.collection(this._class)
         }
@@ -160,8 +164,8 @@ module.exports = db => {
             })
 
 
-
         }
+
     }
 
     Savable.classes                                  = {Savable}

@@ -17,8 +17,10 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
     let notik = await Savable.m.Notebook.findOne(ObjectID('5c7c064d2ed0f4c9ab4cba4e'))
 
     let SilniyeMans = await Savable.m.Savable.find({ $or: [{surname: 'Silniy'}, {surname: 'Silnaya'}]})
-    for (let man of SilniyeMans){
-        console.log('man', (await man).name, (await man).surname)
+    for (let manPromise of SilniyeMans){
+        let man = await manPromise;
+
+        console.log('man', man.name, man.surname, man.createdAt)
     }
 
 
