@@ -1,8 +1,11 @@
 const ObjectID    = require("mongodb").ObjectID;
 const asynchronize = require('./asynchronize').asynchronize
 
+let i=0;
+
 module.exports = db => {
     const identityMap = {}
+
     class Savable {
         constructor(obj, empty=false){
             //TODO check type for return right class 
@@ -79,12 +82,73 @@ module.exports = db => {
             return db.collection(this._class)
         }
 
-        async save(){
+        async save(noRefs=false){
             if (this.empty) return;
+
+            const syncRelations = async () => {
+                if (noRefs) return
+
+                if (!(this && this.__proto__ && this.__proto__.constructor && this.__proto__.constructor.relations)) return 
+
+
+                async function getValueByField(field, savable) {
+                    let path = field.split('.');
+                    await savable;
+                    let result = savable;
+                    let prev;
+                    let lastKey = path.pop()
+                    while (prev = result, result = result[path.shift()] && path.length);
+                    return {value: prev[lastKey], obj: prev, lastKey};
+                }
+
+                let setBackRef = async (backRef, foreignSavable) => {
+                    console.log('BACKREF for', backRef, foreignSavable.name)
+                    const {value: backRefValue, 
+                            obj: backRefObj, 
+                        lastKey: backRefKey} = await getValueByField(backRef, foreignSavable)
+
+                    if (backRefValue instanceof Array){
+                        console.log('backref -to-many array')
+                        if (!backRefValue.includes(this)){
+                            backRefValue.push(this)
+                        }
+                    }
+                    //else if (backRefValue instanceof Set){
+                        //console.log('backref -to-many set')
+                        //backRefValue.add(this)
+                    //}
+                    else {
+                        console.log('backref -to-one')
+                        backRefObj[backRefKey] = this
+                    }
+                    await foreignSavable.save(true)
+                }
+
+
+
+                for (const relation in this.__proto__.constructor.relations){
+                    const backRef = this.__proto__.constructor.relations[relation]
+
+                    let {value, obj, lastKey: key} = await getValueByField(relation, this)
+                    if (value){
+                        if (value instanceof Savable){
+                            console.log('one-to-*')
+                            await setBackRef(backRef, value)
+                        }
+                        if (value instanceof Array /*|| value instanceof Set*/){
+                            console.log('many-to-*')
+                            for (const foreignSavable of value){
+                                await setBackRef(backRef, foreignSavable)
+                            }
+                        }
+                    }
+                }
+            }
 
             async function recursiveSlicer(obj){
                 let result = obj instanceof Array ? [] : {}
                 for (const key in obj){
+
                     if (obj[key] && typeof obj[key] === 'object'){
                         if (obj[key] instanceof Savable){
                             if (!(obj[key]._id)){
@@ -105,16 +169,22 @@ module.exports = db => {
 
             const {_id, _empty, then, ...toSave} = await recursiveSlicer(this)
 
+            //TODO: UPSERT
             if (!this._id){ //first time
                 const { insertedId } = await this.collection.insertOne(toSave)
                 this._id = insertedId
-
             }
             else { //update
                 await this.collection.updateOne({_id: this._id},  {$set: toSave}).catch(err => console.log('UPDATE ERR', err))
             }
             identityMap[this._id.toString()] = this
+
+            await syncRelations()
         }
+
+
+
+
 
         static isSavable(obj){
             //console.log(obj._id, obj._class)
@@ -130,7 +200,7 @@ module.exports = db => {
             return new Savable.classes[className](obj, empty)
         }
 
-        static addClass(_class){
+        static addClass(_class){ //explicit method to add class to Savable registry for instantiate right class later
             Savable.classes[_class.name] = _class
         }
 
@@ -162,10 +232,15 @@ module.exports = db => {
                 set(obj, propName, value){
                 }
             })
-
-
         }
 
+        static get relations(){ 
+            //empty default relations, acceptable: {field: foreignField}, where:
+            //field and foreign field can be Savable, Array or Set
+            //both fields can be specified as "field", "field.subfield" 
+            //or field: {subfield: foreignField} //TODO later if needed
+            return {}
+        }
     }
 
     Savable.classes                                  = {Savable}

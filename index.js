@@ -10,18 +10,39 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
     const Savable     = mm(db)
 
     class Notebook extends Savable{
+        static get relations(){
+            return {
+                owner: "notebook"
+            }
+        }
+    }
 
+    class User extends Savable{
+        static get relations(){
+            return {
+                children: "parent",
+                parent: "children",
+                notebook: "owner",
+            }
+        }
     }
     Savable.addClass(Notebook)
+    Savable.addClass(User)
 
-    let notik = await Savable.m.Notebook.findOne(ObjectID('5c7c064d2ed0f4c9ab4cba4e'))
+    //let notik = await Savable.m.Notebook.findOne(ObjectID('5c7c064d2ed0f4c9ab4cba4e'))
 
-    let SilniyeMans = await Savable.m.Savable.find({ $or: [{surname: 'Silniy'}, {surname: 'Silnaya'}]})
-    for (let manPromise of SilniyeMans){
-        let man = await manPromise;
+    //let SilniyeMans = await Savable.m.Savable.find({ $or: [{surname: 'Silniy'}, {surname: 'Silnaya'}]})
+    //for (let manPromise of SilniyeMans){
+        //let man = await manPromise;
 
-        console.log('man', man.name, man.surname, man.createdAt)
-    }
+        //console.log('man', man.name, man.surname, man.createdAt)
+        //notik.owner = man
+        ////notik.owner = [man]
+        ////notik.owner = new Set([man])
+        //break;
+    //}
+
+    //await notik.save()
 
 
 
@@ -33,33 +54,35 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
 
     //while(true){
         //await (new Savable({timestamp: (new Date).getTime(), r: Math.random()})).save()
-        //let person = new Savable({
-            //name: 'Mykola',
-            //surname: 'Silniy',
-            //phones: ['105', '1'],
-            //children: [
-                //new Savable({
-                    //name: 'Marina',
-                    //surname: 'Silnaya',
-                    //phones: ['105', '1000503']
-                //}),
-                //new Savable({
-                    //name: 'Andrey',
-                    //surname: 'Silniy',
-                    //phones: ['103', '1000502']
-                //}),
-                //new Savable({
-                    //name: 'Fedor',
-                    //surname: 'Ivanova',
-                    //phones: ['102', '1000504'],
-                    //notebook: new Notebook({
-                        //brand: 'dubovo'
-                    //})
-                //})
-            //]
-        //})
+        let person = new User({
+            name: 'Mykola',
+            surname: 'Silniy',
+            phones: ['105', '1'],
+            children: [
+                new User({
+                    name: 'Marina',
+                    surname: 'Silnaya',
+                    phones: ['105', '1000503'],
+                    parent: []
+                }),
+                new User({
+                    name: 'Andrey',
+                    surname: 'Silniy',
+                    phones: ['103', '1000502'],
+                    parent: new Set
+                }),
+                new User({
+                    name: 'Fedor',
+                    surname: 'Ivanova',
+                    phones: ['102', '1000504'],
+                    notebook: new Notebook({
+                        brand: 'dubovo'
+                    })
+                })
+            ]
+        })
 
-        //await person.save()
+        await person.save()
         //console.log(person)
 
         //await delay(1000)
