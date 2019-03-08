@@ -29,6 +29,42 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
     Savable.addClass(Notebook)
     Savable.addClass(User)
 
+    let father = await Savable.m.User.findOne(ObjectID("5c7e830b411baf1efe9f251c"))
+    console.log(father)
+    for (let child of father.children){
+        console.log(await child)
+    }
+
+    //let person = new User({
+        //name: 'Mykola',
+        //surname: 'Silniy',
+        //phones: ['105', '1'],
+        //children: [
+            //new User({
+                //name: 'Marina',
+                //surname: 'Silnaya',
+                //phones: ['105', '1000503'],
+            //}),
+            //new User({
+                //name: 'Andrey',
+                //surname: 'Silniy',
+                //phones: ['103', '1000502'],
+            //}),
+            //new User({
+                //name: 'Fedor',
+                //surname: 'Ivanova',
+                //phones: ['102', '1000504'],
+                //notebook: new Notebook({
+                    //brand: 'dubovo'
+                //})
+            //})
+        //]
+    //})
+
+    //await person.save()
+
+
+
     //let notik = await Savable.m.Notebook.findOne(ObjectID('5c7c064d2ed0f4c9ab4cba4e'))
 
     //let SilniyeMans = await Savable.m.Savable.find({ $or: [{surname: 'Silniy'}, {surname: 'Silnaya'}]})
@@ -54,35 +90,6 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
 
     //while(true){
         //await (new Savable({timestamp: (new Date).getTime(), r: Math.random()})).save()
-        let person = new User({
-            name: 'Mykola',
-            surname: 'Silniy',
-            phones: ['105', '1'],
-            children: [
-                new User({
-                    name: 'Marina',
-                    surname: 'Silnaya',
-                    phones: ['105', '1000503'],
-                    parent: []
-                }),
-                new User({
-                    name: 'Andrey',
-                    surname: 'Silniy',
-                    phones: ['103', '1000502'],
-                    parent: new Set
-                }),
-                new User({
-                    name: 'Fedor',
-                    surname: 'Ivanova',
-                    phones: ['102', '1000504'],
-                    notebook: new Notebook({
-                        brand: 'dubovo'
-                    })
-                })
-            ]
-        })
-
-        await person.save()
         //console.log(person)
 
         //await delay(1000)

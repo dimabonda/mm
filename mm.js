@@ -9,7 +9,16 @@ module.exports = db => {
     class Savable {
         constructor(obj, empty=false){
             //TODO check type for return right class 
-            if ((obj && obj._id) && (obj._id.toString() in identityMap)) return identityMap[obj._id]
+            if (obj && obj._id){
+                console.log('savable...')
+                if (!empty){
+                    identityMap[obj._id.toString()] = this
+                }
+                //console.log(identityMap)
+                if (obj._id.toString() in identityMap){
+                    console.log(`in identity map ${obj._id}`)
+                }
+            }
 
 
             this._id    = null
@@ -22,11 +31,12 @@ module.exports = db => {
                 this.populate(obj)
                 this._empty = empty
             }
+            if ((obj && obj._id) && (obj._id.toString() in identityMap)) return identityMap[obj._id]
         }
 
 
 
-        populate(obj, empty){
+        populate(obj){
             function convertSavables(obj){
                 for (const key in obj){
                     if (Savable.isSavable(obj[key])){
@@ -57,8 +67,9 @@ module.exports = db => {
                     delete this.then
                     if (!this._id)    err(new ReferenceError('Id is empty'))
                     if (!this._class) err(new ReferenceError('Class is empty'))
+                    //TODO identityMap check for already loaded object into memory
 
-                    this.collection.findOne(_id).then( data => {
+                    this.collection.findOne(this._id).then( data => {
                         if (!data){
                             err(new ReferenceError('Document Not Found'))
                         }
@@ -86,6 +97,7 @@ module.exports = db => {
             if (this.empty) return;
 
             const syncRelations = async () => {
+                //TODO: remove refs if some ref detached since load from db
                 if (noRefs) return
 
                 if (!(this && this.__proto__ && this.__proto__.constructor && this.__proto__.constructor.relations)) return 
@@ -239,6 +251,11 @@ module.exports = db => {
             //field and foreign field can be Savable, Array or Set
             //both fields can be specified as "field", "field.subfield" 
             //or field: {subfield: foreignField} //TODO later if needed
+            //TODO: move it into object instead of class to give more flexibility, for example
+            //if person has children, it can have backRef father or mother depending on sex:
+            //return {
+            //    children: this.sex === 'male' ? 'father': 'mother'
+            //}
             return {}
         }
     }
