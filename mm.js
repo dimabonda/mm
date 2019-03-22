@@ -43,9 +43,15 @@ module.exports = db => {
                 }
             }
 
-            for (const key in obj) this[key] = obj[key]   
+            Object.assign(this, obj)
+
 
             convertSavables(this)
+
+            this._loadRelations = {};
+            for (const relation in this.__proto__.constructor.relations){
+                this._loadRelations[relation] = this[relation] instanceof Array ? [...this[relation]] : this[relation]
+            }
         }
 
         get _empty(){
@@ -118,10 +124,6 @@ module.exports = db => {
                             backRefValue.push(this)
                         }
                     }
-                    //else if (backRefValue instanceof Set){
-                        //console.log('backref -to-many set')
-                        //backRefValue.add(this)
-                    //}
                     else {
                         console.log('backref -to-one')
                         backRefObj[backRefKey] = this
@@ -130,21 +132,31 @@ module.exports = db => {
                 }
 
 
-
+                
                 for (const relation in this.__proto__.constructor.relations){
                     const backRef = this.__proto__.constructor.relations[relation]
 
+                    const loadRelation = this._loadRelations[relation]
+                    const loadRelationAsArray = loadRelation instanceof Savable ? [loadRelation] : loadRelation
+
                     let {value, obj, lastKey: key} = await getValueByField(relation, this)
-                    if (value){
-                        if (value instanceof Savable){
-                            console.log('one-to-*')
-                            await setBackRef(backRef, value)
-                        }
-                        if (value instanceof Array /*|| value instanceof Set*/){
-                            console.log('many-to-*')
-                            for (const foreignSavable of value){
-                                await setBackRef(backRef, foreignSavable)
+                    const valueAsArray = value instanceof Savable ? [value] : value
+                    if (loadRelationAsArray){
+                        const removedRefs = valueAsArray ? loadRelationAsArray.filter(ref => !valueAsArray.includes(ref)) : loadRelationAsArray
+                        for (const ref of removedRefs){
+                            await ref;
+                            if (ref[backRef] instanceof Array){
+                                ref[backRef] = ref[backRef].filter(br => br._id !== this._id)
                             }
+                            else {
+                                ref[backRef] = null
+                            }
+                            await ref.save(true)
+                        }
+                    }
+                    if (valueAsArray){
+                        for (const foreignSavable of valueAsArray){
+                            await setBackRef(backRef, foreignSavable)
                         }
                     }
                 }
@@ -172,7 +184,7 @@ module.exports = db => {
                 return result;
             }
 
-            const {_id, _empty, _ref, then, ...toSave} = await recursiveSlicer(this)
+            const {_id, _empty, _ref, _loadRelations, then, ...toSave} = await recursiveSlicer(this)
 
             //TODO: UPSERT
             if (!this._id){ //first time

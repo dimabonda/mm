@@ -30,12 +30,18 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
     Savable.addClass(User)
     
 
-    let father = await Savable.m.User.findOne(ObjectID("5c9559dfbbf3d0049529f70b"))
-    console.log(father)
-    for (let child of father.children){
-        console.log(await child)
-        console.log(child.name, child.dirty)
-    }
+    //for (let child of father.children){
+        //console.log(await child)
+        //console.log(child.name, child.dirty)
+    //}
+
+    let father = await Savable.m.User.findOne(ObjectID("5c9571219be797377361c65a"))
+    console.log(father);
+    (await father.children[0]).parent = null;
+    await (await father.children[0]).save();
+    console.log(father);
+    
+
 
     //let person = new User({
         //name: 'Mykola',
@@ -64,6 +70,7 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
     //})
 
     //await person.save()
+
 
 
 
