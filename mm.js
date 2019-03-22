@@ -4,24 +4,17 @@ const asynchronize = require('./asynchronize').asynchronize
 let i=0;
 
 module.exports = db => {
-    const identityMap = {}
 
     class Savable {
-        constructor(obj, empty=false){
+        constructor(obj, ref, empty=false){
             //TODO check type for return right class 
             if (obj && obj._id){
                 console.log('savable...')
-                if (!empty){
-                    identityMap[obj._id.toString()] = this
-                }
-                //console.log(identityMap)
-                if (obj._id.toString() in identityMap){
-                    console.log(`in identity map ${obj._id}`)
-                }
             }
 
 
             this._id    = null
+            this._ref   = ref
             this._class = this.__proto__.constructor.name
             this._empty = true
 
@@ -31,16 +24,18 @@ module.exports = db => {
                 this.populate(obj)
                 this._empty = empty
             }
-            if ((obj && obj._id) && (obj._id.toString() in identityMap)) return identityMap[obj._id]
         }
 
 
 
         populate(obj){
-            function convertSavables(obj){
+            const convertSavables = (obj) => {
                 for (const key in obj){
                     if (Savable.isSavable(obj[key])){
-                        obj[key] = Savable.newSavable(obj[key])
+                        obj[key] = (this._ref && 
+                                    obj[key]._id.toString() == this._ref._id.toString()) ? 
+                                                       this._ref : 
+                                                       Savable.newSavable(obj[key], this)
                     }
                     else if (typeof obj[key] === 'object'){
                         convertSavables(obj[key])
@@ -67,14 +62,12 @@ module.exports = db => {
                     delete this.then
                     if (!this._id)    err(new ReferenceError('Id is empty'))
                     if (!this._class) err(new ReferenceError('Class is empty'))
-                    //TODO identityMap check for already loaded object into memory
 
                     this.collection.findOne(this._id).then( data => {
                         if (!data){
                             err(new ReferenceError('Document Not Found'))
                         }
                         this.populate(data)
-                        identityMap[this._id.toString()] = this
                         cb(this)
                     })
                     return this
@@ -179,7 +172,7 @@ module.exports = db => {
                 return result;
             }
 
-            const {_id, _empty, then, ...toSave} = await recursiveSlicer(this)
+            const {_id, _empty, _ref, then, ...toSave} = await recursiveSlicer(this)
 
             //TODO: UPSERT
             if (!this._id){ //first time
@@ -189,10 +182,10 @@ module.exports = db => {
             else { //update
                 await this.collection.updateOne({_id: this._id},  {$set: toSave}).catch(err => console.log('UPDATE ERR', err))
             }
-            identityMap[this._id.toString()] = this
 
             await syncRelations()
         }
+
 
 
 
@@ -203,13 +196,13 @@ module.exports = db => {
             return obj && obj._id && obj._class
         }
 
-        static newSavable(obj, empty=true){
+        static newSavable(obj, ref, empty=true){
             let className = obj._class || "Savable"
             if (obj.__proto__.constructor === Savable.classes[className]){
                 return obj
             }
             
-            return new Savable.classes[className](obj, empty)
+            return new Savable.classes[className](obj, ref, empty)
         }
 
         static addClass(_class){ //explicit method to add class to Savable registry for instantiate right class later
@@ -230,13 +223,15 @@ module.exports = db => {
                             let cursorGen = asynchronize({s: cursor.stream(), chunkEventName: 'data', endEventName: 'close'})
                             for (const pObj of cursorGen()){
                                 yield new Promise((ok, fail) => 
-                                    pObj.then(obj => ok(Savable.newSavable(obj, false)), 
+                                    pObj.then(obj => ok(Savable.newSavable(obj, null, false)), 
                                               err => fail(err)))
                             }
                         },
                         async findOne(query, projection){
                             let result = await db.collection(_class).findOne(query, projection)
-                            return Savable.newSavable(result, false)
+                            if (result)
+                                return Savable.newSavable(result, null, false)
+                            return result
                         }
                     }
                 },

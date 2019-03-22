@@ -28,11 +28,13 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
     }
     Savable.addClass(Notebook)
     Savable.addClass(User)
+    
 
-    let father = await Savable.m.User.findOne(ObjectID("5c7e830b411baf1efe9f251c"))
+    let father = await Savable.m.User.findOne(ObjectID("5c9559dfbbf3d0049529f70b"))
     console.log(father)
     for (let child of father.children){
         console.log(await child)
+        console.log(child.name, child.dirty)
     }
 
     //let person = new User({
