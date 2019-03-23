@@ -70,7 +70,7 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
     //}
 
 
-    async function walker(limit=10000) {
+    async function walker(limit=10) {
         let start = (new Date()).getTime()
         let stamp = start
         let now   = start
@@ -78,7 +78,11 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
         let prevI = 0
         let person = await Savable.m.User.findOne()
         for (var i=0;i<limit;i++){
+            let prevPerson = person
             person = await rndItem(person.friends) //walking in graph: go to random friend
+
+            console.log(prevPerson._id)
+            await prevPerson.delete()
             //if (persons.includes(person)){
                 //console.log('WAS HERE',person._id, person.name, person.surname, person.createdAt)
             //}
@@ -100,11 +104,11 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
         return now - start
     }
 
-    //await walker()
+    await walker()
 
 
-    console.log(await Promise.all([walker(), walker()]))
-    console.log(await Promise.all([walker(), walker()]))
+    //console.log(await Promise.all([walker(), walker()]))
+    //console.log(await Promise.all([walker(), walker()]))
 
 
 

@@ -57,8 +57,7 @@ module.exports = db => {
             convertSavables(this)
 
             this.saveRelations()
-
-            this._id = obj._id
+            //this._id = obj._id
         }
 
         get _empty(){
@@ -104,13 +103,11 @@ module.exports = db => {
             return db.collection(this._class)
         }
 
-        async save(noRefs=false){
+        async save(noRefs=false, noSync=false){
             if (this.empty) return;
 
             const syncRelations = async () => {
-                //TODO: remove refs if some ref detached since load from db
-                //if (noRefs) return
-
+                if (noSync) return
                 if (!(this && this.__proto__ && this.__proto__.constructor && this.__proto__.constructor.relations)) return 
 
 
@@ -211,6 +208,33 @@ module.exports = db => {
             this.saveRelations()
         }
 
+        async delete(){
+            for (const relation in this.__proto__.constructor.relations){
+                const backRef = this.__proto__.constructor.relations[relation]
+
+                const loadRelation = this._loadRelations[relation]
+                const loadRelationAsArray = loadRelation instanceof Savable ? [loadRelation] : loadRelation
+
+                if (loadRelationAsArray){
+                    for (const ref of loadRelationAsArray){
+                        //console.log(ref._id)
+                        await ref;
+                        if (ref[backRef] instanceof Array){
+                            ref[backRef] = ref[backRef].filter(br => br._id !== this._id)
+                        }
+                        else {
+                            ref[backRef] = null
+                        }
+                        await ref.save(true, true)
+                    }
+                }
+                //console.log(`relation delete loop ${relation}`)
+            }
+            let id = this._id
+
+            return await this.collection.deleteOne({_id: id})
+        }
+
 
 
 
@@ -245,7 +269,9 @@ module.exports = db => {
                     return  obj[_class] = {
                         * find(query, projection){
                             let cursor = db.collection(_class).find(query, projection)
-                            let cursorGen = asynchronize({s: cursor.stream(), chunkEventName: 'data', endEventName: 'close'})
+                            let cursorGen = asynchronize({s: cursor.stream(), 
+                                                          chunkEventName: 'data', 
+                                                          endEventName: 'close'})
                             for (const pObj of cursorGen()){
                                 yield new Promise((ok, fail) => 
                                     pObj.then(obj => ok(Savable.newSavable(obj, null, false)), 
