@@ -53,10 +53,12 @@ module.exports = db => {
             Object.assign(this, obj)
 
 
+
             convertSavables(this)
 
             this.saveRelations()
 
+            this._id = obj._id
         }
 
         get _empty(){
@@ -66,19 +68,24 @@ module.exports = db => {
         set _empty(value){
             if (value){
                 this.then = (cb, err) => {
-                    if (!this._empty){
-                        cb(this)
-                        return this
-                    }
+                    let stamp = (new Date()).getTime()
+                    //if (!this._empty){ //it can't (?) works
+                        //cb(this)
+                        //return this
+                    //}
                     delete this.then
                     if (!this._id)    err(new ReferenceError('Id is empty'))
                     if (!this._class) err(new ReferenceError('Class is empty'))
+
+                    //console.log(this._id)
 
                     this.collection.findOne(this._id).then( data => {
                         if (!data){
                             err(new ReferenceError('Document Not Found'))
                         }
+                        //console.log('FIND', (new Date()).getTime() - stamp)
                         this.populate(data)
+                        //console.log('FIND AND POPULATE', (new Date()).getTime() - stamp)
                         cb(this)
                     })
                     return this

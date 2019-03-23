@@ -82,9 +82,9 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
             //if (persons.includes(person)){
                 //console.log('WAS HERE',person._id, person.name, person.surname, person.createdAt)
             //}
-            ////for (let friend of person.friends){
-                ////await friend
-            ////}
+            //for (let friend of person.friends){
+                //await friend
+            //}
             //persons.push(person)
 
             now = (new Date()).getTime()
@@ -99,6 +99,8 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
         }
         return now - start
     }
+
+    //await walker()
 
 
     console.log(await Promise.all([walker(), walker()]))
