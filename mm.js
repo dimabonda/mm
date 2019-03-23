@@ -8,9 +8,9 @@ module.exports = db => {
     class Savable {
         constructor(obj, ref, empty=false){
             //TODO check type for return right class 
-            if (obj && obj._id){
-                console.log('savable...')
-            }
+            //if (obj && obj._id){
+                //console.log('savable...')
+            //}
 
 
             this._id    = null
@@ -23,6 +23,13 @@ module.exports = db => {
             if (obj){
                 this.populate(obj)
                 this._empty = empty
+            }
+        }
+
+        saveRelations(){
+            this._loadRelations = {};
+            for (const relation in this.__proto__.constructor.relations){
+                this._loadRelations[relation] = this[relation] instanceof Array ? [...this[relation]] : this[relation]
             }
         }
 
@@ -48,10 +55,8 @@ module.exports = db => {
 
             convertSavables(this)
 
-            this._loadRelations = {};
-            for (const relation in this.__proto__.constructor.relations){
-                this._loadRelations[relation] = this[relation] instanceof Array ? [...this[relation]] : this[relation]
-            }
+            this.saveRelations()
+
         }
 
         get _empty(){
@@ -97,7 +102,7 @@ module.exports = db => {
 
             const syncRelations = async () => {
                 //TODO: remove refs if some ref detached since load from db
-                if (noRefs) return
+                //if (noRefs) return
 
                 if (!(this && this.__proto__ && this.__proto__.constructor && this.__proto__.constructor.relations)) return 
 
@@ -113,22 +118,22 @@ module.exports = db => {
                 }
 
                 let setBackRef = async (backRef, foreignSavable) => {
-                    console.log('BACKREF for', backRef, foreignSavable.name)
+                    //console.log('BACKREF for', backRef, foreignSavable.name)
                     const {value: backRefValue, 
                             obj: backRefObj, 
                         lastKey: backRefKey} = await getValueByField(backRef, foreignSavable)
 
                     if (backRefValue instanceof Array){
-                        console.log('backref -to-many array')
+                        //console.log('backref -to-many array')
                         if (!backRefValue.includes(this)){
                             backRefValue.push(this)
                         }
                     }
                     else {
-                        console.log('backref -to-one')
+                        //console.log('backref -to-one')
                         backRefObj[backRefKey] = this
                     }
-                    await foreignSavable.save(true)
+                    noRefs || await foreignSavable.save(true)
                 }
 
 
@@ -151,7 +156,7 @@ module.exports = db => {
                             else {
                                 ref[backRef] = null
                             }
-                            await ref.save(true)
+                            noRefs || await ref.save(true)
                         }
                     }
                     if (valueAsArray){
@@ -196,6 +201,7 @@ module.exports = db => {
             }
 
             await syncRelations()
+            this.saveRelations()
         }
 
 
