@@ -77,9 +77,15 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
 
         let prevI = 0
         let person = await Savable.m.User.findOne()
+        let prevPerson;
         for (var i=0;i<limit;i++){
-            let prevPerson = person
-            person = await rndItem(person.friends) //walking in graph: go to random friend
+            prevPerson = person || prevPerson
+            try {
+                person = person.friends ? await rndItem(person.friends) : await Savable.m.User.findOne() //walking in graph: go to random friend
+            }
+            catch(e){
+                person = await Savable.m.User.findOne()
+            }
 
             console.log(prevPerson._id)
             await prevPerson.delete()
@@ -104,7 +110,7 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
         return now - start
     }
 
-    await walker()
+    await walker(8531)
 
 
     //console.log(await Promise.all([walker(), walker()]))

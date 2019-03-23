@@ -7,12 +7,6 @@ module.exports = db => {
 
     class Savable {
         constructor(obj, ref, empty=false){
-            //TODO check type for return right class 
-            //if (obj && obj._id){
-                //console.log('savable...')
-            //}
-
-
             this._id    = null
             this._ref   = ref
             this._class = this.__proto__.constructor.name
@@ -68,23 +62,16 @@ module.exports = db => {
             if (value){
                 this.then = (cb, err) => {
                     let stamp = (new Date()).getTime()
-                    //if (!this._empty){ //it can't (?) works
-                        //cb(this)
-                        //return this
-                    //}
                     delete this.then
+
                     if (!this._id)    err(new ReferenceError('Id is empty'))
                     if (!this._class) err(new ReferenceError('Class is empty'))
-
-                    //console.log(this._id)
 
                     this.collection.findOne(this._id).then( data => {
                         if (!data){
                             err(new ReferenceError('Document Not Found'))
                         }
-                        //console.log('FIND', (new Date()).getTime() - stamp)
                         this.populate(data)
-                        //console.log('FIND AND POPULATE', (new Date()).getTime() - stamp)
                         cb(this)
                     })
                     return this
@@ -113,7 +100,7 @@ module.exports = db => {
 
                 async function getValueByField(field, savable) {
                     let path = field.split('.');
-                    await savable;
+                    await savable.catch(e => console.log('GET VALUE BY FIELD ERROR'));
                     let result = savable;
                     let prev;
                     let lastKey = path.pop()
@@ -122,19 +109,16 @@ module.exports = db => {
                 }
 
                 let setBackRef = async (backRef, foreignSavable) => {
-                    //console.log('BACKREF for', backRef, foreignSavable.name)
                     const {value: backRefValue, 
                             obj: backRefObj, 
                         lastKey: backRefKey} = await getValueByField(backRef, foreignSavable)
 
                     if (backRefValue instanceof Array){
-                        //console.log('backref -to-many array')
                         if (!backRefValue.includes(this)){
                             backRefValue.push(this)
                         }
                     }
                     else {
-                        //console.log('backref -to-one')
                         backRefObj[backRefKey] = this
                     }
                     noRefs || await foreignSavable.save(true)
@@ -153,7 +137,10 @@ module.exports = db => {
                     if (loadRelationAsArray){
                         const removedRefs = valueAsArray ? loadRelationAsArray.filter(ref => !valueAsArray.includes(ref)) : loadRelationAsArray
                         for (const ref of removedRefs){
-                            await ref;
+                            try {
+                                await ref
+                            }
+                            catch (e) {console.log('SYNC RELATIONS ERROR') }
                             if (ref[backRef] instanceof Array){
                                 ref[backRef] = ref[backRef].filter(br => br._id !== this._id)
                             }
@@ -208,17 +195,19 @@ module.exports = db => {
             this.saveRelations()
         }
 
-        async delete(){
-            for (const relation in this.__proto__.constructor.relations){
+        async delete(noRefs=false){
+            if (!noRefs) for (const relation in this.__proto__.constructor.relations){
                 const backRef = this.__proto__.constructor.relations[relation]
 
-                const loadRelation = this._loadRelations[relation]
+                const loadRelation = this._loadRelations && this._loadRelations[relation]
                 const loadRelationAsArray = loadRelation instanceof Savable ? [loadRelation] : loadRelation
 
                 if (loadRelationAsArray){
                     for (const ref of loadRelationAsArray){
-                        //console.log(ref._id)
-                        await ref;
+                        try {
+                            await ref
+                        }
+                        catch (e) {console.log('DELETE SYNC RELATIONS ERROR') }
                         if (ref[backRef] instanceof Array){
                             ref[backRef] = ref[backRef].filter(br => br._id !== this._id)
                         }
@@ -228,11 +217,17 @@ module.exports = db => {
                         await ref.save(true, true)
                     }
                 }
-                //console.log(`relation delete loop ${relation}`)
             }
-            let id = this._id
+            const id  = this._id
+            const col = this._class && this.collection
 
-            return await this.collection.deleteOne({_id: id})
+            for (let key in this)
+                delete this[key]
+
+            delete this.__proto__
+
+            if (col)
+                return await col.deleteOne({_id: id})
         }
 
 
@@ -241,7 +236,6 @@ module.exports = db => {
 
 
         static isSavable(obj){
-            //console.log(obj._id, obj._class)
             return obj && obj._id && obj._class
         }
 
