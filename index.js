@@ -7,9 +7,11 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
     const mongoClient = new MongoClient("mongodb://localhost:27017/", { useNewUrlParser: true });
     const client      = await mongoClient.connect()
     const db          = client.db('mm')
-    const Savable     = mm(db)
+    const Savable     = mm(db).Savable
+    const SlicedSavable = mm(db).sliceSavable([ObjectID("5c9571219be797377361c65a"), 'user', 'admin'])
+    //const SlicedSavable = mm(db).sliceSavable([])
 
-    class Notebook extends Savable{
+    class Notebook extends SlicedSavable{
         static get relations(){
             return {
                 owner: "notebook"
@@ -17,7 +19,7 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
         }
     }
 
-    class User extends Savable{
+    class User extends SlicedSavable{
         static get relations(){
             return {
                 children: "parent",
@@ -76,7 +78,14 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
         let now   = start
 
         let prevI = 0
-        let person = await Savable.m.User.findOne()
+        let person
+        for (let uP of Savable.m.User.find({},null,{sort:['_id', -1], limit: [1]})){
+            person = await uP
+            console.log(person)
+        }
+
+        //let person = [...Savable.m.User.find({},null,{sort:['_id', 1], limit: [1]})][0]
+        //console.log('order-huyorder', person)
         let prevPerson;
         for (var i=0;i<limit;i++){
             prevPerson = person || prevPerson
@@ -87,8 +96,8 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
                 person = await Savable.m.User.findOne()
             }
 
-            console.log(prevPerson._id)
-            await prevPerson.delete()
+            //console.log(prevPerson && prevPerson._id)
+            //await prevPerson.delete()
             //if (persons.includes(person)){
                 //console.log('WAS HERE',person._id, person.name, person.surname, person.createdAt)
             //}

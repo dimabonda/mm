@@ -4,7 +4,6 @@ const asynchronize = require('./asynchronize').asynchronize
 let i=0;
 
 module.exports = db => {
-
     class Savable {
         constructor(obj, ref, empty=false){
             this._id    = null
@@ -261,8 +260,15 @@ module.exports = db => {
                     }
 
                     return  obj[_class] = {
-                        * find(query, projection){
+                        * find(query, projection, cursorCalls){
                             let cursor = db.collection(_class).find(query, projection)
+                            for (let [method, params] of Object.entries(cursorCalls)){
+                                if (typeof cursor[method] !== "function"){
+                                    throw new SyntaxError(`Wrong cursor method ${method}`)
+                                }
+
+                                cursor = cursor[method](...params)
+                            }
                             let cursorGen = asynchronize({s: cursor.stream(), 
                                                           chunkEventName: 'data', 
                                                           endEventName: 'close'})
@@ -302,5 +308,76 @@ module.exports = db => {
 
     Savable.classes                                  = {Savable}
 
-    return Savable
+    /**
+     * sliceSavable - slice (limit) Savables for some permission
+     * Array userACL - array of objectIDs, words or savable refs - current user, group objectid, or `tags` or `role` (ACL)
+     */
+
+    function sliceSavable(userACL){
+        userACL = userACL.map(tag => tag.toString())
+        class SlicedSavable extends Savable {
+            constructor(...params){
+                super  (...params)
+
+                if (!this._empty){
+                    this.___permissionsPrepare()
+                }
+                else {
+                    this.___owner = userACL[0] instanceof ObjectID ? userACL : ObjectID(userACL[0])
+                }
+            }
+
+            ___permissionsPrepare(){
+                if (this._empty)          return
+                if (!this.___permissions) this.___permissions = {}
+
+                for (let [perm, acl] of Object.entries(this.__proto__.constructor.defaultPermissions)){
+                    if (!this.___permissions[perm]){
+                        this.___permissions[perm] = [...acl]
+                    }
+                }
+            }
+
+            ___permissionCan(permission){
+                const acl = (this.___permissions && 
+                                this.___permissions[permission] || 
+                                    this.__proto__.constructor.defaultPermissions[permission]).map(tag => tag.toString())
+                if (acl.includes('owner') && this.___owner && userACL.includes(this.___owner.toString())){
+                    return true
+                }
+                for (let uTag of userACL){
+                    if (acl.includes(uTag)){
+                        return true
+                    }
+                }
+                return false
+            }
+
+            populate(...params){ //place to check read permission
+                if (!this.___permissionCan('read')){
+                    throw new ReferenceError(`No Access To Entity ${this._id} of class ${this._class}`)
+                }
+                super.populate(...params)
+            }
+
+            static get defaultPermissions(){
+                return {
+                    //savable refs, objectid's, words like 'tags' or 'roles'
+                    read: ['owner', 'user'],
+                    write: ['owner', 'admin'],
+                    create: ['user'],
+                    delete: ['admin'],
+
+                    /*permission
+                     * TODO: permissions for read and write permissions
+                     *
+                     */
+                }
+            }
+        }
+
+        return SlicedSavable
+    }
+
+    return {Savable, sliceSavable}
 }
