@@ -10,6 +10,7 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
     const Savable     = mm(db).Savable
     const SlicedSavable = mm(db).sliceSavable([ObjectID("5c9571219be797377361c65a"), 'user', 'admin'])
     //const SlicedSavable = mm(db).sliceSavable([])
+    //
 
     class Notebook extends SlicedSavable{
         static get relations(){
@@ -37,6 +38,35 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
     let surnames = ['Ivanopulo', 'Petrov', 'Mykolyiv', 'Alexandrov']
 
     let rndItem  = arr => arr[Math.floor(Math.random()*arr.length)]
+
+
+    let person = new User({
+        name: 'Mykola',
+        surname: 'Silniy',
+        phones: ['105', '1'],
+        children: [
+            new User({
+                name: 'Marina',
+                surname: 'Silnaya',
+                phones: ['105', '1000503'],
+            }),
+            new User({
+                name: 'Andrey',
+                surname: 'Silniy',
+                phones: ['103', '1000502'],
+            }),
+            new User({
+                name: 'Fedor',
+                surname: 'Ivanova',
+                phones: ['102', '1000504'],
+                notebook: new Notebook({
+                    brand: 'dubovo'
+                })
+            })
+        ]
+    })
+
+    await person.save()
 
 
 
@@ -119,7 +149,7 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
         return now - start
     }
 
-    await walker(8531)
+    //await walker(8531)
 
 
     //console.log(await Promise.all([walker(), walker()]))
@@ -142,33 +172,6 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
     
 
 
-    //let person = new User({
-        //name: 'Mykola',
-        //surname: 'Silniy',
-        //phones: ['105', '1'],
-        //children: [
-            //new User({
-                //name: 'Marina',
-                //surname: 'Silnaya',
-                //phones: ['105', '1000503'],
-            //}),
-            //new User({
-                //name: 'Andrey',
-                //surname: 'Silniy',
-                //phones: ['103', '1000502'],
-            //}),
-            //new User({
-                //name: 'Fedor',
-                //surname: 'Ivanova',
-                //phones: ['102', '1000504'],
-                //notebook: new Notebook({
-                    //brand: 'dubovo'
-                //})
-            //})
-        //]
-    //})
-
-    //await person.save()
 
 
 

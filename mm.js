@@ -99,7 +99,7 @@ module.exports = db => {
 
                 async function getValueByField(field, savable) {
                     let path = field.split('.');
-                    await savable.catch(e => console.log('GET VALUE BY FIELD ERROR'));
+                    await savable//.catch(e => console.log('GET VALUE BY FIELD ERROR'));
                     let result = savable;
                     let prev;
                     let lastKey = path.pop()
@@ -315,15 +315,13 @@ module.exports = db => {
 
     function sliceSavable(userACL){
         userACL = userACL.map(tag => tag.toString())
+        console.log(userACL)
         class SlicedSavable extends Savable {
             constructor(...params){
                 super  (...params)
 
                 if (!this._empty){
                     this.___permissionsPrepare()
-                }
-                else {
-                    this.___owner = userACL[0] instanceof ObjectID ? userACL : ObjectID(userACL[0])
                 }
             }
 
@@ -338,9 +336,9 @@ module.exports = db => {
                 }
             }
 
-            ___permissionCan(permission){
-                const acl = (this.___permissions && 
-                                this.___permissions[permission] || 
+            ___permissionCan(permission, permissions=this.___permissions){
+                const acl = (permissions && 
+                                permissions[permission] || 
                                     this.__proto__.constructor.defaultPermissions[permission]).map(tag => tag.toString())
                 if (acl.includes('owner') && this.___owner && userACL.includes(this.___owner.toString())){
                     return true
@@ -353,12 +351,34 @@ module.exports = db => {
                 return false
             }
 
-            populate(...params){ //place to check read permission
-                if (!this.___permissionCan('read')){
+            populate(obj){ //place to check read permission
+                if (!this.___permissionCan('read', obj.___permissions)){
                     throw new ReferenceError(`No Access To Entity ${this._id} of class ${this._class}`)
                 }
-                super.populate(...params)
+                super.populate(obj)
             }
+
+
+            async save(...params){
+                if (!this._id && !this.___permissionCan('create'))
+                    throw new ReferenceError(`Permissison denied Create Entity of class ${this._class}`)
+                if (!this.___permissionCan('write'))
+                    throw new ReferenceError(`Permissison denied Save Entity ${this._id} of class ${this._class}`)
+
+                if (!this._id){
+                    this.___owner = userACL[0] //TODO fix objectid troubles 
+                    console.log(typeof this.___owner, this.___owner)
+                }
+                return await super.save(...params)
+            }
+
+
+            async delete(noRefs=false){
+                if (!this.___permissionCan('delete'))
+                    throw new ReferenceError(`Permissison denied Delete Entity ${this._id} of class ${this._class}`)
+                return await super.delete(noRefs)
+            }
+
 
             static get defaultPermissions(){
                 return {
