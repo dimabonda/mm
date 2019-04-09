@@ -31,4 +31,5 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
         }
     }
     Savable.addClass(Notebook)
+})()
  
