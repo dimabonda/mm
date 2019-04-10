@@ -90,7 +90,7 @@ module.exports = db => {
         }
 
         async save(noRefs=false, noSync=false){
-            if (this.empty) return;
+            if (this.empty) return this;
 
             const syncRelations = async () => {
                 if (noSync) return
@@ -192,6 +192,7 @@ module.exports = db => {
 
             await syncRelations()
             this.saveRelations()
+	    return this
         }
 
         async delete(noRefs=false){
@@ -260,7 +261,7 @@ module.exports = db => {
                     }
 
                     return  obj[_class] = {
-                        * find(query, projection, cursorCalls){
+                        * find(query, projection, cursorCalls={}){
                             let cursor = db.collection(_class).find(query, projection)
                             for (let [method, params] of Object.entries(cursorCalls)){
                                 if (typeof cursor[method] !== "function"){
@@ -274,7 +275,7 @@ module.exports = db => {
                                                           endEventName: 'close'})
                             for (const pObj of cursorGen()){
                                 yield new Promise((ok, fail) => 
-                                    pObj.then(obj => ok(Savable.newSavable(obj, null, false)), 
+                                    pObj.then(obj => (/*console.log(obj),*/ok(Savable.newSavable(obj, null, false))), 
                                               err => fail(err)))
                             }
                         },
@@ -336,11 +337,11 @@ module.exports = db => {
                 }
             }
 
-            ___permissionCan(permission, permissions=this.___permissions){
+            ___permissionCan(permission, permissions=this.___permissions, obj=this){
                 const acl = (permissions && 
                                 permissions[permission] || 
                                     this.__proto__.constructor.defaultPermissions[permission]).map(tag => tag.toString())
-                if (acl.includes('owner') && this.___owner && userACL.includes(this.___owner.toString())){
+                if (acl.includes('owner') && obj.___owner && userACL.includes(obj.___owner.toString())){
                     return true
                 }
                 for (let uTag of userACL){
@@ -352,7 +353,8 @@ module.exports = db => {
             }
 
             populate(obj){ //place to check read permission
-                if (!this.___permissionCan('read', obj.___permissions)){
+		    console.log(obj)
+                if (!this.___permissionCan('read', obj.___permissions, obj)){
                     throw new ReferenceError(`No Access To Entity ${this._id} of class ${this._class}`)
                 }
                 super.populate(obj)
@@ -362,7 +364,7 @@ module.exports = db => {
             async save(...params){
                 if (!this._id && !this.___permissionCan('create'))
                     throw new ReferenceError(`Permissison denied Create Entity of class ${this._class}`)
-                if (!this.___permissionCan('write'))
+                if (this._id && !this.___permissionCan('write'))
                     throw new ReferenceError(`Permissison denied Save Entity ${this._id} of class ${this._class}`)
 
                 if (!this._id){
@@ -378,6 +380,48 @@ module.exports = db => {
                     throw new ReferenceError(`Permissison denied Delete Entity ${this._id} of class ${this._class}`)
                 return await super.delete(noRefs)
             }
+	static ___permissionQuery(permission){
+		//const withObjectIDs = userACL.map((a,id) => (id = new ObjectID(a)) && id.toString() === a ? id : a)
+		const withObjectIDs = userACL
+		return {
+			//$or: {
+			//TODO or 'owner' in permission  
+		//	}
+			$or: [
+				{[`___permissions.${permission}`]: {$in: withObjectIDs}},
+				{$and: [{[`___permissions.${permission}`]: "owner"},
+					{___owner: userACL[0]}]}]
+				
+
+
+		}
+	}
+		
+	static get m() {
+            return new Proxy({}, {
+                get(obj, _class){
+                    if (_class in obj){
+                        return obj[_class]
+                    }
+
+                    return  obj[_class] = {
+                        * find(query, projection, cursorCalls={}){
+			    Savable.addClass(_class)
+			    let permittedQuery = {$and: [SlicedSavable.___permissionQuery('read') ,query]}
+			//	console.log(JSON.stringify(permittedQuery, null, 4))
+			    yield* Savable.m[_class].find(permittedQuery, projection, cursorCalls)
+                        },
+                        async findOne(query, projection){
+			    let permittedQuery = {$and: [SlicedSavable.___permissionQuery('read') ,query]}
+			    return await Savable.m[_class].findOne(permittedQuery, projection)
+                        }
+                    }
+                },
+
+                set(obj, propName, value){
+                }
+            })
+        }
 
 
             static get defaultPermissions(){
