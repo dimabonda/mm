@@ -384,16 +384,10 @@ module.exports = db => {
 		//const withObjectIDs = userACL.map((a,id) => (id = new ObjectID(a)) && id.toString() === a ? id : a)
 		const withObjectIDs = userACL
 		return {
-			//$or: {
-			//TODO or 'owner' in permission  
-		//	}
 			$or: [
 				{[`___permissions.${permission}`]: {$in: withObjectIDs}},
 				{$and: [{[`___permissions.${permission}`]: "owner"},
 					{___owner: userACL[0]}]}]
-				
-
-
 		}
 	}
 		
@@ -412,6 +406,7 @@ module.exports = db => {
 			    yield* Savable.m[_class].find(permittedQuery, projection, cursorCalls)
                         },
                         async findOne(query, projection){
+			    Savable.addClass(_class)
 			    let permittedQuery = {$and: [SlicedSavable.___permissionQuery('read') ,query]}
 			    return await Savable.m[_class].findOne(permittedQuery, projection)
                         }
