@@ -31,7 +31,7 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
     let looser = (await Savable.m.User.findOne({login: 'looser'})) || 
 		 (await (new User({login: 'looser'})).save())
     console.log(looser)
-    const SlicedSavable = mm(db).sliceSavable([admin._id, 'admin', 'user'])
+    const SlicedSavable = mm(db).sliceSavable([looser._id, ])
 	
     class Notebook extends SlicedSavable{
 	    //nothing at all
@@ -52,7 +52,7 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
 	console.log('findone', await SlicedSavable.m.Notebook.findOne({brand: 'dubovo'}))
 	for (const notik of SlicedSavable.m.Notebook.find({})){
 		let n = await notik
-		console.log(n)
+            //console.log(n)
 		//await n.delete() 
 		//n.changed = true;
 //		await n.save()

@@ -1,8 +1,6 @@
 const ObjectID    = require("mongodb").ObjectID;
 const asynchronize = require('./asynchronize').asynchronize
 
-let i=0;
-
 module.exports = db => {
     class Savable {
         constructor(obj, ref, empty=false){
@@ -249,7 +247,7 @@ module.exports = db => {
         }
 
         static addClass(_class){ //explicit method to add class to Savable registry for instantiate right class later
-            Savable.classes[_class.name] = _class
+            (typeof _class == 'function') && (Savable.classes[_class.name] = _class)
         }
 
 
@@ -353,7 +351,7 @@ module.exports = db => {
             }
 
             populate(obj){ //place to check read permission
-		    console.log(obj)
+		    //console.log(obj)
                 if (!this.___permissionCan('read', obj.___permissions, obj)){
                     throw new ReferenceError(`No Access To Entity ${this._id} of class ${this._class}`)
                 }
@@ -380,59 +378,66 @@ module.exports = db => {
                     throw new ReferenceError(`Permissison denied Delete Entity ${this._id} of class ${this._class}`)
                 return await super.delete(noRefs)
             }
-	static ___permissionQuery(permission){
-		//const withObjectIDs = userACL.map((a,id) => (id = new ObjectID(a)) && id.toString() === a ? id : a)
-		const withObjectIDs = userACL
-		return {
-			$or: [
-				{[`___permissions.${permission}`]: {$in: withObjectIDs}},
-				{$and: [{[`___permissions.${permission}`]: "owner"},
-					{___owner: userACL[0]}]}]
-		}
-	}
-		
-	static get m() {
-            return new Proxy({}, {
-                get(obj, _class){
-                    if (_class in obj){
-                        return obj[_class]
-                    }
 
-                    return  obj[_class] = {
-                        * find(query, projection, cursorCalls={}){
-			    Savable.addClass(_class)
-			    let permittedQuery = {$and: [SlicedSavable.___permissionQuery('read') ,query]}
-			//	console.log(JSON.stringify(permittedQuery, null, 4))
-			    yield* Savable.m[_class].find(permittedQuery, projection, cursorCalls)
-                        },
-                        async findOne(query, projection){
-			    Savable.addClass(_class)
-			    let permittedQuery = {$and: [SlicedSavable.___permissionQuery('read') ,query]}
-			    return await Savable.m[_class].findOne(permittedQuery, projection)
-                        }
-                    }
-                },
-
-                set(obj, propName, value){
-                }
-            })
-        }
-
-
-            static get defaultPermissions(){
+            static ___permissionQuery(permission){
+                //const withObjectIDs = userACL.map((a,id) => (id = new ObjectID(a)) && id.toString() === a ? id : a)
+                const withObjectIDs = userACL
                 return {
-                    //savable refs, objectid's, words like 'tags' or 'roles'
-                    read: ['owner', 'user'],
-                    write: ['owner', 'admin'],
-                    create: ['user'],
-                    delete: ['admin'],
-
-                    /*permission
-                     * TODO: permissions for read and write permissions
-                     *
-                     */
+                    $or: [
+                          {[`___permissions.${permission}`]: {$in: withObjectIDs}},
+                          {$and: [{[`___permissions.${permission}`]: "owner"},
+                                             {___owner: userACL[0]}]}]
+                    }
                 }
+
+            static get m() {
+                return new Proxy({}, {
+                        get(obj, _class){
+                                if (_class in obj){
+                                        return obj[_class]
+                                }
+
+                                return  obj[_class] = {
+                                    * find(query, projection, cursorCalls={}){
+                                        const originalClass = Savable.classes[_class.name]
+                                        Savable.addClass(_class)
+                                        let permittedQuery = {$and: [SlicedSavable.___permissionQuery('read') ,query]}
+                                        let iter = Savable.m[_class].find(permittedQuery, projection, cursorCalls)
+                                        Savable.addClass(originalClass)
+                                        yield* iter;
+                                    },
+                                    async findOne(query, projection){
+                                        const originalClass = Savable.classes[_class.name]
+                                        Savable.addClass(_class)
+                                            
+                                        const permittedQuery = {$and: [SlicedSavable.___permissionQuery('read') ,query]}
+                                        const p = Savable.m[_class].findOne(permittedQuery, projection)
+                                        Savable.addClass(originalClass)
+                                        
+                                        return await p;
+                                    }
+                                }
+                        },
+
+                        set(obj, propName, value){
+                        }
+                })
             }
+
+                static get defaultPermissions(){
+                        return {
+                                //savable refs, objectid's, words like 'tags' or 'roles'
+                                read: ['owner', 'user'],
+                                write: ['owner', 'admin'],
+                                create: ['user'],
+                                delete: ['admin'],
+
+                                /*permission
+                                 * TODO: permissions for read and write permissions
+                                 *
+                                 */
+                        }
+                }
         }
 
         return SlicedSavable
