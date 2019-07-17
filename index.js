@@ -1,251 +1,448 @@
-const MongoClient = require("mongodb").MongoClient;
 const ObjectID    = require("mongodb").ObjectID;
-const mm          = require('./mm.js')
-const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
- 
-;(async () => {
-    const mongoClient = new MongoClient("mongodb://localhost:27017/", { useNewUrlParser: true });
-    const client      = await mongoClient.connect()
-    const db          = client.db('mm')
-    const Savable     = mm(db).Savable
-    const SlicedSavable = mm(db).sliceSavable([ObjectID("5c9571219be797377361c65a"), 'user', 'admin'])
-    //const SlicedSavable = mm(db).sliceSavable([])
-    //
+const asynchronize = require('./asynchronize').asynchronize
 
-    class Notebook extends SlicedSavable{
-        static get relations(){
-            return {
-                owner: "notebook"
+module.exports = db => {
+    class Savable {
+        constructor(obj, ref, empty=false){
+            this._id    = null
+            this._ref   = ref
+            this._class = this.__proto__.constructor.name
+            this._empty = true
+
+            Savable.addClass(this.__proto__.constructor)
+
+            if (obj){
+                this.populate(obj)
+                this._empty = empty
             }
         }
-    }
 
-    class User extends SlicedSavable{
-        static get relations(){
-            return {
-                children: "parent",
-                parent: "children",
-                friends: "friends",
-                notebook: "owner",
+        saveRelations(){
+            this._loadRelations = {};
+            for (const relation in this.__proto__.constructor.relations){
+                this._loadRelations[relation] = this[relation] instanceof Array ? [...this[relation]] : this[relation]
             }
         }
-    }
-    Savable.addClass(Notebook)
-    Savable.addClass(User)
 
 
-    let names    = ['Ivan', 'Petro', 'Mykola', 'Sashko']
-    let surnames = ['Ivanopulo', 'Petrov', 'Mykolyiv', 'Alexandrov']
 
-    let rndItem  = arr => arr[Math.floor(Math.random()*arr.length)]
+        populate(obj){
+            const convertSavables = (obj) => {
+                for (const key in obj){
+                    if (Savable.isSavable(obj[key])){
+                        obj[key] = (this._ref && 
+                                    obj[key]._id.toString() == this._ref._id.toString()) ? 
+                                                       this._ref : 
+                                                       Savable.newSavable(obj[key], this)
+                    }
+                    else if (typeof obj[key] === 'object'){
+                        convertSavables(obj[key])
+                    }
+                }
+            }
+
+            Object.assign(this, obj)
 
 
-    let person = new User({
-        name: 'Mykola',
-        surname: 'Silniy',
-        phones: ['105', '1'],
-        children: [
-            new User({
-                name: 'Marina',
-                surname: 'Silnaya',
-                phones: ['105', '1000503'],
-            }),
-            new User({
-                name: 'Andrey',
-                surname: 'Silniy',
-                phones: ['103', '1000502'],
-            }),
-            new User({
-                name: 'Fedor',
-                surname: 'Ivanova',
-                phones: ['102', '1000504'],
-                notebook: new Notebook({
-                    brand: 'dubovo'
-                })
+
+            convertSavables(this)
+
+            this.saveRelations()
+            //this._id = obj._id
+        }
+
+        get _empty(){
+            return !!this.then
+        }
+
+        set _empty(value){
+            if (value){
+                this.then = (cb, err) => {
+                    let stamp = (new Date()).getTime()
+                    delete this.then
+
+                    if (!this._id)    err(new ReferenceError('Id is empty'))
+                    if (!this._class) err(new ReferenceError('Class is empty'))
+
+                    this.collection.findOne(this._id).then( data => {
+                        if (!data){
+                            err(new ReferenceError('Document Not Found'))
+                        }
+                        this.populate(data)
+                        cb(this)
+                    })
+                    return this
+                }
+            }
+            else {
+                delete this.then
+            }
+        }
+
+        get createdAt(){
+            return this._id ? new Date(this._id.getTimestamp()) : null
+        }
+
+        get collection(){
+            return db.collection(this._class)
+        }
+
+        async save(noRefs=false, noSync=false){
+            if (this.empty) return this;
+
+            const syncRelations = async () => {
+                if (noSync) return
+                if (!(this && this.__proto__ && this.__proto__.constructor && this.__proto__.constructor.relations)) return 
+
+
+                async function getValueByField(field, savable) {
+                    let path = field.split('.');
+                    await savable//.catch(e => console.log('GET VALUE BY FIELD ERROR'));
+                    let result = savable;
+                    let prev;
+                    let lastKey = path.pop()
+                    while (prev = result, result = result[path.shift()] && path.length);
+                    return {value: prev[lastKey], obj: prev, lastKey};
+                }
+
+                let setBackRef = async (backRef, foreignSavable) => {
+                    const {value: backRefValue, 
+                            obj: backRefObj, 
+                        lastKey: backRefKey} = await getValueByField(backRef, foreignSavable)
+
+                    if (backRefValue instanceof Array){
+                        if (!backRefValue.includes(this)){
+                            backRefValue.push(this)
+                        }
+                    }
+                    else {
+                        backRefObj[backRefKey] = this
+                    }
+                    noRefs || await foreignSavable.save(true)
+                }
+
+
+                
+                for (const relation in this.__proto__.constructor.relations){
+                    const backRef = this.__proto__.constructor.relations[relation]
+
+                    const loadRelation = this._loadRelations[relation]
+                    const loadRelationAsArray = loadRelation instanceof Savable ? [loadRelation] : loadRelation
+
+                    let {value, obj, lastKey: key} = await getValueByField(relation, this)
+                    const valueAsArray = value instanceof Savable ? [value] : value
+                    if (loadRelationAsArray){
+                        const removedRefs = valueAsArray ? loadRelationAsArray.filter(ref => !valueAsArray.includes(ref)) : loadRelationAsArray
+                        for (const ref of removedRefs){
+                            try {
+                                await ref
+                            }
+                            catch (e) {console.log('SYNC RELATIONS ERROR') }
+                            if (ref[backRef] instanceof Array){
+                                ref[backRef] = ref[backRef].filter(br => br._id !== this._id)
+                            }
+                            else {
+                                ref[backRef] = null
+                            }
+                            noRefs || await ref.save(true)
+                        }
+                    }
+                    if (valueAsArray){
+                        for (const foreignSavable of valueAsArray){
+                            await setBackRef(backRef, foreignSavable)
+                        }
+                    }
+                }
+            }
+
+            async function recursiveSlicer(obj){
+                let result = obj instanceof Array ? [] : {}
+                for (const key in obj){
+
+                    if (obj[key] && typeof obj[key] === 'object'){
+                        if (obj[key] instanceof Savable){
+                            if (!(obj[key]._id)){
+                                await obj[key].save().catch(err => console.log('ERR', err))
+                            }
+                            result[key] = {_id: obj[key]._id, _class: obj[key]._class}
+                        }
+                        else {
+                            result[key] = await recursiveSlicer(obj[key])
+                        }
+                    }
+                    else {
+                        result[key] = obj[key]
+                    }
+                }
+                return result;
+            }
+
+            const {_id, _empty, _ref, _loadRelations, then, ...toSave} = await recursiveSlicer(this)
+
+            //TODO: UPSERT
+            if (!this._id){ //first time
+                const { insertedId } = await this.collection.insertOne(toSave)
+                this._id = insertedId
+            }
+            else { //update
+                await this.collection.updateOne({_id: this._id},  {$set: toSave}).catch(err => console.log('UPDATE ERR', err))
+            }
+
+            await syncRelations()
+            this.saveRelations()
+	    return this
+        }
+
+        async delete(noRefs=false){
+            if (!noRefs) for (const relation in this.__proto__.constructor.relations){
+                const backRef = this.__proto__.constructor.relations[relation]
+
+                const loadRelation = this._loadRelations && this._loadRelations[relation]
+                const loadRelationAsArray = loadRelation instanceof Savable ? [loadRelation] : loadRelation
+
+                if (loadRelationAsArray){
+                    for (const ref of loadRelationAsArray){
+                        try {
+                            await ref
+                        }
+                        catch (e) {console.log('DELETE SYNC RELATIONS ERROR') }
+                        if (ref[backRef] instanceof Array){
+                            ref[backRef] = ref[backRef].filter(br => br._id !== this._id)
+                        }
+                        else {
+                            ref[backRef] = null
+                        }
+                        await ref.save(true, true)
+                    }
+                }
+            }
+            const id  = this._id
+            const col = this._class && this.collection
+
+            for (let key in this)
+                delete this[key]
+
+            delete this.__proto__
+
+            if (col)
+                return await col.deleteOne({_id: id})
+        }
+
+
+
+
+
+
+        static isSavable(obj){
+            return obj && obj._id && obj._class
+        }
+
+        static newSavable(obj, ref, empty=true){
+            let className = obj._class || "Savable"
+            if (obj.__proto__.constructor === Savable.classes[className]){
+                return obj
+            }
+            
+            return new Savable.classes[className](obj, ref, empty)
+        }
+
+        static addClass(_class){ //explicit method to add class to Savable registry for instantiate right class later
+            (typeof _class == 'function') && (Savable.classes[_class.name] = _class)
+        }
+
+
+        static get m(){
+            return new Proxy({}, {
+                get(obj, _class){
+                    if (_class in obj){
+                        return obj[_class]
+                    }
+
+                    return  obj[_class] = {
+                        * find(query, projection, cursorCalls={}){
+                            let cursor = db.collection(_class).find(query, projection)
+                            for (let [method, params] of Object.entries(cursorCalls)){
+                                if (typeof cursor[method] !== "function"){
+                                    throw new SyntaxError(`Wrong cursor method ${method}`)
+                                }
+
+                                cursor = cursor[method](...params)
+                            }
+                            let cursorGen = asynchronize({s: cursor.stream(), 
+                                                          chunkEventName: 'data', 
+                                                          endEventName: 'close'})
+                            for (const pObj of cursorGen()){
+                                yield new Promise((ok, fail) => 
+                                    pObj.then(obj => (/*console.log(obj),*/ok(Savable.newSavable(obj, null, false))), 
+                                              err => fail(err)))
+                            }
+                        },
+                        async findOne(query, projection){
+                            let result = await db.collection(_class).findOne(query, projection)
+                            if (result)
+                                return Savable.newSavable(result, null, false)
+                            return result
+                        }
+                    }
+                },
+
+                set(obj, propName, value){
+                }
             })
-        ]
-    })
-
-    await person.save()
-
-
-
-    let stamp = (new Date()).getTime()
-    let prevI = 0;
-    const persons = []
-    //for (var i=0;i<1e10;i++){
-        //let person = new User({
-            //name: rndItem(names),
-            //surname: rndItem(surnames),
-            //phones: ['105', '1'],
-            //friends: persons.slice(-(Math.random()*80))
-        //})
-
-        //await person.save(true)
-        
-        //persons.push(person)
-        //if (persons.length > 200){
-            //await (Math.random() > 0.5 ? persons.shift() : persons.pop()).save(true)
-        //}
-        
-
-        //let now = (new Date()).getTime()
-        //if (stamp < now - 1000){
-            ////results:
-            ////objects w/o relations: 2500 writes per second
-            ////objects w relations: pessimistic backrelations sync, 0..80 friends of 200 latest created, ~25 per second due 0..80 saves of other friends with new one relation
-            ////objects w relations: ~500 per second, save w/o backref save (but it updated in object), than, when object removed from random buffer, re-save it with updated relations
-            //console.log(i, i - prevI)
-            //prevI = i
-            //stamp = now
-        //}
-    //}
-
-
-    async function walker(limit=10) {
-        let start = (new Date()).getTime()
-        let stamp = start
-        let now   = start
-
-        let prevI = 0
-        let person
-        for (let uP of Savable.m.User.find({},null,{sort:['_id', -1], limit: [1]})){
-            person = await uP
-            console.log(person)
         }
 
-        //let person = [...Savable.m.User.find({},null,{sort:['_id', 1], limit: [1]})][0]
-        //console.log('order-huyorder', person)
-        let prevPerson;
-        for (var i=0;i<limit;i++){
-            prevPerson = person || prevPerson
-            try {
-                person = person.friends ? await rndItem(person.friends) : await Savable.m.User.findOne() //walking in graph: go to random friend
-            }
-            catch(e){
-                person = await Savable.m.User.findOne()
-            }
-
-            //console.log(prevPerson && prevPerson._id)
-            //await prevPerson.delete()
-            //if (persons.includes(person)){
-                //console.log('WAS HERE',person._id, person.name, person.surname, person.createdAt)
+        static get relations(){ 
+            //empty default relations, acceptable: {field: foreignField}, where:
+            //field and foreign field can be Savable, Array or Set
+            //both fields can be specified as "field", "field.subfield" 
+            //or field: {subfield: foreignField} //TODO later if needed
+            //TODO: move it into object instead of class to give more flexibility, for example
+            //if person has children, it can have backRef father or mother depending on sex:
+            //return {
+            //    children: this.sex === 'male' ? 'father': 'mother'
             //}
-            //for (let friend of person.friends){
-                //await friend
-            //}
-            //persons.push(person)
-
-            now = (new Date()).getTime()
-            if (stamp < now - 1000){
-                //results:
-                //walking: 100-200 per second, not so fun...
-                //loops in graph: near 0-5 on 100 steps between nodes in graph
-                console.log(i, i - prevI, person._id, person.name, person.surname, person.createdAt)
-                prevI = i
-                stamp = now
-            }
+            return {}
         }
-        return now - start
     }
 
-    //await walker(8531)
+    Savable.classes                                  = {Savable}
+
+    /**
+     * sliceSavable - slice (limit) Savables for some permission
+     * Array userACL - array of objectIDs, words or savable refs - current user, group objectid, or `tags` or `role` (ACL)
+     */
+
+    function sliceSavable(userACL){
+        userACL = userACL.map(tag => tag.toString())
+        console.log(userACL)
+        class SlicedSavable extends Savable {
+            constructor(...params){
+                super  (...params)
+
+                if (!this._empty){
+                    this.___permissionsPrepare()
+                }
+            }
+
+            ___permissionsPrepare(){
+                if (this._empty)          return
+                if (!this.___permissions) this.___permissions = {}
+
+                for (let [perm, acl] of Object.entries(this.__proto__.constructor.defaultPermissions)){
+                    if (!this.___permissions[perm]){
+                        this.___permissions[perm] = [...acl]
+                    }
+                }
+            }
+
+            ___permissionCan(permission, permissions=this.___permissions, obj=this){
+                const acl = (permissions && 
+                                permissions[permission] || 
+                                    this.__proto__.constructor.defaultPermissions[permission]).map(tag => tag.toString())
+                if (acl.includes('owner') && obj.___owner && userACL.includes(obj.___owner.toString())){
+                    return true
+                }
+                for (let uTag of userACL){
+                    if (acl.includes(uTag)){
+                        return true
+                    }
+                }
+                return false
+            }
+
+            populate(obj){ //place to check read permission
+		    //console.log(obj)
+                if (!this.___permissionCan('read', obj.___permissions, obj)){
+                    throw new ReferenceError(`No Access To Entity ${this._id} of class ${this._class}`)
+                }
+                super.populate(obj)
+            }
 
 
-    //console.log(await Promise.all([walker(), walker()]))
-    //console.log(await Promise.all([walker(), walker()]))
+            async save(...params){
+                if (!this._id && !this.___permissionCan('create'))
+                    throw new ReferenceError(`Permissison denied Create Entity of class ${this._class}`)
+                if (this._id && !this.___permissionCan('write'))
+                    throw new ReferenceError(`Permissison denied Save Entity ${this._id} of class ${this._class}`)
+
+                if (!this._id){
+                    this.___owner = userACL[0] //TODO fix objectid troubles 
+                    console.log(typeof this.___owner, this.___owner)
+                }
+                return await super.save(...params)
+            }
 
 
+            async delete(noRefs=false){
+                if (!this.___permissionCan('delete'))
+                    throw new ReferenceError(`Permissison denied Delete Entity ${this._id} of class ${this._class}`)
+                return await super.delete(noRefs)
+            }
 
-    
+            static ___permissionQuery(permission){
+                //const withObjectIDs = userACL.map((a,id) => (id = new ObjectID(a)) && id.toString() === a ? id : a)
+                const withObjectIDs = userACL
+                return {
+                    $or: [
+                          {[`___permissions.${permission}`]: {$in: withObjectIDs}},
+                          {$and: [{[`___permissions.${permission}`]: "owner"},
+                                             {___owner: userACL[0]}]}]
+                    }
+                }
 
-    //for (let child of father.children){
-        //console.log(await child)
-        //console.log(child.name, child.dirty)
-    //}
+            static get m() {
+                return new Proxy({}, {
+                        get(obj, _class){
+                                if (_class in obj){
+                                        return obj[_class]
+                                }
 
-    //let father = await Savable.m.User.findOne(ObjectID("5c9571219be797377361c65a"))
-    //console.log(father);
-    //(await father.children[0]).parent = null;
-    //await (await father.children[0]).save();
-    //console.log(father);
-    
+                                return  obj[_class] = {
+                                    * find(query, projection, cursorCalls={}){
+                                        const originalClass = Savable.classes[_class.name]
+                                        Savable.addClass(_class)
+                                        let permittedQuery = {$and: [SlicedSavable.___permissionQuery('read') ,query]}
+                                        console.log(permittedQuery)
+                                        let iter = Savable.m[_class].find(permittedQuery, projection, cursorCalls)
+                                        Savable.addClass(originalClass)
+                                        yield* iter;
+                                    },
+                                    async findOne(query, projection){
+                                        const originalClass = Savable.classes[_class.name]
+                                        Savable.addClass(_class)
+                                            
+                                        const permittedQuery = {$and: [SlicedSavable.___permissionQuery('read') ,query]}
+                                        const p = Savable.m[_class].findOne(permittedQuery, projection)
+                                        Savable.addClass(originalClass)
+                                        
+                                        return await p;
+                                    }
+                                }
+                        },
 
+                        set(obj, propName, value){
+                        }
+                })
+            }
 
+                static get defaultPermissions(){
+                        return {
+                                //savable refs, objectid's, words like 'tags' or 'roles'
+                                read: ['owner', 'user'],
+                                write: ['owner', 'admin'],
+                                create: ['user'],
+                                delete: ['admin'],
 
+                                /*permission
+                                 * TODO: permissions for read and write permissions
+                                 *
+                                 */
+                        }
+                }
+        }
 
+        return SlicedSavable
+    }
 
-
-    //let notik = await Savable.m.Notebook.findOne(ObjectID('5c7c064d2ed0f4c9ab4cba4e'))
-
-    //let SilniyeMans = await Savable.m.Savable.find({ $or: [{surname: 'Silniy'}, {surname: 'Silnaya'}]})
-    //for (let manPromise of SilniyeMans){
-        //let man = await manPromise;
-
-        //console.log('man', man.name, man.surname, man.createdAt)
-        //notik.owner = man
-        ////notik.owner = [man]
-        ////notik.owner = new Set([man])
-        //break;
-    //}
-
-    //await notik.save()
-
-
-
-    //console.log(notik)
-    //notik.ram = 4;
-    //notik.resolution = {width: 1920, height: 1080}
-    //await notik.save()
-    //console.log(await Savable.m.Notebook.findOne(ObjectID('5c7c064d2ed0f4c9ab4cba4e')))
-
-    //while(true){
-        //await (new Savable({timestamp: (new Date).getTime(), r: Math.random()})).save()
-        //console.log(person)
-
-        //await delay(1000)
-    ////}
-
-    ////let person = new Savable()
-    ////person._id = ObjectID('5c7bd603ce3cbc409978203e');
-    ////console.log(person)
-
-    //let child = new Savable({
-        //name: 'New One Child',
-        //surname: 'Silniy',
-        //phones: ['105', '1000506']
-    //});
-
-    ////console.log(await person)
-    ////console.log(await person.children[1])
-    //person.children.push(child)
-    //child.father = person
-
-    ////console.log(person)
-    ////console.log(child)
-
-    //await person.save()
-
-
-    ////console.log(await person.children[3])
-    //let p2 =new Savable({_id: ObjectID('5c7bf8f04a3a3299f7deda0d' )}, true) //check for cache hit
-    //;(await new Savable({_id: ObjectID('5c7bf8f04a3a3299f7deda0d' )}, true)) //check for cache hit
-    //;(await p2)
-    //console.log('parent 2', p2)
-    //console.log(await     p2.children[3]) //check for other hit
-    //console.log(await person.children[3].father)
-    //console.log(await person.children[3].father.children[1])
-
-    ////let obj = {
-        ////then(cb){
-            ////process.nextTick(() => cb(obj))
-        ////}
-    ////}
-    ////console.log(await obj)
-    ////console.log('empty await', await person)//.then(p => console.log(p))
-    ////console.log('sub await', (await person.children[0]))//.then(p => console.log(p))
-
-
-
-    client.close();
-})()
+    return {Savable, sliceSavable}
+}

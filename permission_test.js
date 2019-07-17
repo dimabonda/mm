@@ -31,7 +31,7 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
     let looser = (await Savable.m.User.findOne({login: 'looser'})) || 
 		 (await (new User({login: 'looser'})).save())
     console.log(looser)
-    const SlicedSavable = mm(db).sliceSavable([looser._id, ])
+    const SlicedSavable = mm(db).sliceSavable([admin._id, ])
 	
     class Notebook extends SlicedSavable{
 	    //nothing at all
