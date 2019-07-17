@@ -314,7 +314,7 @@ module.exports = db => {
 
     function sliceSavable(userACL){
         userACL = userACL.map(tag => tag.toString())
-        console.log(userACL)
+        //console.log(userACL)
         class SlicedSavable extends Savable {
             constructor(...params){
                 super  (...params)
@@ -367,7 +367,7 @@ module.exports = db => {
 
                 if (!this._id){
                     this.___owner = userACL[0] //TODO fix objectid troubles 
-                    console.log(typeof this.___owner, this.___owner)
+                    //console.log(typeof this.___owner, this.___owner)
                 }
                 return await super.save(...params)
             }
@@ -402,7 +402,7 @@ module.exports = db => {
                                         const originalClass = Savable.classes[_class.name]
                                         Savable.addClass(_class)
                                         let permittedQuery = {$and: [SlicedSavable.___permissionQuery('read') ,query]}
-                                        console.log(permittedQuery)
+                                        //console.log(permittedQuery)
                                         let iter = Savable.m[_class].find(permittedQuery, projection, cursorCalls)
                                         Savable.addClass(originalClass)
                                         yield* iter;
