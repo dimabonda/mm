@@ -9,7 +9,7 @@ function openPromise(){
     return np
 }
 
-function asynchronize({s, chunkEventName, endEventName}){
+function asynchronize({s, chunkEventName, endEventName, errEventName, countMethodName}){
     return function* (){
         const chunks        = {};
         const promises      = {};
@@ -45,8 +45,23 @@ function asynchronize({s, chunkEventName, endEventName}){
 
         s.on(endEventName, () => {
             end = true;
-
+            //console.log('END OF STREAM')
         })
+
+        if (errEventName)
+            s.on(errEventName, () => {
+                end = true;
+                //console.log('ERR OF STREAM')
+            })
+
+        if (countMethodName){
+            let count = s[countMethodName](true)
+            const checker = count => count <= 0 && (end = true /*, console.log(`COUNT ${count}`) */ )
+            if (count.then && typeof count.then === 'function')
+                count.then(checker)
+            else 
+                checker(count)
+        }
 
         while (!end || Object.keys(chunks).length){
 

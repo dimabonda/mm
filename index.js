@@ -190,7 +190,7 @@ module.exports = db => {
 
             await syncRelations()
             this.saveRelations()
-	    return this
+            return this
         }
 
         async delete(noRefs=false){
@@ -270,7 +270,10 @@ module.exports = db => {
                             }
                             let cursorGen = asynchronize({s: cursor.stream(), 
                                                           chunkEventName: 'data', 
-                                                          endEventName: 'close'})
+                                                          endEventName: 'close',
+                                                          errEventName: 'error',
+                                                          countMethodName: 'count'})
+
                             for (const pObj of cursorGen()){
                                 yield new Promise((ok, fail) => 
                                     pObj.then(obj => (/*console.log(obj),*/ok(Savable.newSavable(obj, null, false))), 
@@ -359,17 +362,17 @@ module.exports = db => {
             }
 
 
-            async save(...params){
+            async save(noRefs=false, noSync=false){
                 if (!this._id && !this.___permissionCan('create'))
                     throw new ReferenceError(`Permissison denied Create Entity of class ${this._class}`)
-                if (this._id && !this.___permissionCan('write'))
+                if (this._id && !this.___permissionCan('write') && !noRefs) //give ability to change backrefs for not permitted records
                     throw new ReferenceError(`Permissison denied Save Entity ${this._id} of class ${this._class}`)
 
                 if (!this._id){
                     this.___owner = userACL[0] //TODO fix objectid troubles 
                     //console.log(typeof this.___owner, this.___owner)
                 }
-                return await super.save(...params)
+                return await super.save(noRefs, noSync)
             }
 
 
@@ -399,17 +402,17 @@ module.exports = db => {
 
                                 return  obj[_class] = {
                                     * find(query, projection, cursorCalls={}){
-                                        const originalClass = Savable.classes[_class.name]
-                                        Savable.addClass(_class)
+                                        const originalClass = Savable.classes[_class]
+                                        Savable.addClass(SlicedSavable.classes[_class])
                                         let permittedQuery = {$and: [SlicedSavable.___permissionQuery('read') ,query]}
-                                        //console.log(permittedQuery)
+                                        //console.log(JSON.stringify(permittedQuery, null, 4))
                                         let iter = Savable.m[_class].find(permittedQuery, projection, cursorCalls)
                                         Savable.addClass(originalClass)
                                         yield* iter;
                                     },
                                     async findOne(query, projection){
-                                        const originalClass = Savable.classes[_class.name]
-                                        Savable.addClass(_class)
+                                        const originalClass = Savable.classes[_class]
+                                        Savable.addClass(SlicedSavable.classes[_class])
                                             
                                         const permittedQuery = {$and: [SlicedSavable.___permissionQuery('read') ,query]}
                                         const p = Savable.m[_class].findOne(permittedQuery, projection)
