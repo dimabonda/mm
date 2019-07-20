@@ -248,6 +248,7 @@ module.exports = db => {
 
         static newSavable(obj, ref, empty=true){
             let className = obj._class || "Savable"
+            className     = Savable.classes[className] ? className : "Savable"
             if (obj.__proto__.constructor === Savable.classes[className]){
                 return obj
             }
