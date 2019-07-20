@@ -1,5 +1,5 @@
 const ObjectID    = require("mongodb").ObjectID;
-const asynchronize = require('./asynchronize').asynchronize
+const {asynchronize, openPromise } = require('./asynchronize')
 
 module.exports = db => {
     class Savable {
@@ -57,21 +57,30 @@ module.exports = db => {
 
         set _empty(value){
             if (value){
+                //TODO: list of callbacks, because then can be called many times, and
+                //it's not reason to repeat query to db
                 this.then = (cb, err) => {
-                    let stamp = (new Date()).getTime()
-                    delete this.then
 
                     if (!this._id)    err(new ReferenceError('Id is empty'))
                     if (!this._class) err(new ReferenceError('Class is empty'))
+
+                    const promise = openPromise()
 
                     this.collection.findOne(this._id).then( data => {
                         if (!data){
                             err(new ReferenceError('Document Not Found'))
                         }
-                        this.populate(data)
-                        cb(this)
+                        else {
+                            delete this.then
+                            this.populate(data)
+                            if (typeof cb === 'function')
+                                promise.resolve(cb(this))
+                            else {
+                                promise.resolve(this)
+                            }
+                        }
                     })
-                    return this
+                    return promise
                 }
             }
             else {
@@ -354,7 +363,7 @@ module.exports = db => {
             }
 
             populate(obj){ //place to check read permission
-		    //console.log(obj)
+                //console.log(obj)
                 if (!this.___permissionCan('read', obj.___permissions, obj)){
                     throw new ReferenceError(`No Access To Entity ${this._id} of class ${this._class}`)
                 }
