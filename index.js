@@ -1,7 +1,7 @@
 const ObjectID    = require("mongodb").ObjectID;
 const {asynchronize, openPromise } = require('./asynchronize')
 
-module.exports = db => {
+const mm = db => {
     class Savable {
         constructor(obj, ref, empty=false){
             this._id    = null
@@ -457,21 +457,27 @@ module.exports = db => {
         return SlicedSavable
     }
 
-    async function connect(dbName, dsn="mongodb://localhost:27017/"){
-        if (!dbName)
-            throw new ReferenceError(`db name does not provided`)
 
-        const mongoClient = new MongoClient(dsn, { useNewUrlParser: true });
-        const client      = await mongoClient.connect()
-        const db          = client.db(dbName)
-        const Savable     = mm(db).Savable
-        const slice       = mm(db).sliceSavable 
+    return {Savable, sliceSavable}
+}
 
-        return {
-            Savable, 
-            slice,
-        }
+async function connect(dbName, dsn="mongodb://localhost:27017/"){
+    if (!dbName)
+        throw new ReferenceError(`db name does not provided`)
+
+    const mongoClient = new MongoClient(dsn, { useNewUrlParser: true });
+    const client      = await mongoClient.connect()
+    const db          = client.db(dbName)
+    const Savable     = mm(db).Savable
+    const slice       = mm(db).sliceSavable 
+
+    return {
+        Savable, 
+        slice,
     }
+}
 
-    return {Savable, sliceSavable, connect}
+module.exports = {
+    mm,
+    connect
 }
