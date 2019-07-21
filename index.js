@@ -457,5 +457,21 @@ module.exports = db => {
         return SlicedSavable
     }
 
-    return {Savable, sliceSavable}
+    async function connect(dbName, dsn="mongodb://localhost:27017/"){
+        if (!dbName)
+            throw new ReferenceError(`db name does not provided`)
+
+        const mongoClient = new MongoClient(dsn, { useNewUrlParser: true });
+        const client      = await mongoClient.connect()
+        const db          = client.db(dbName)
+        const Savable     = mm(db).Savable
+        const slice       = mm(db).sliceSavable 
+
+        return {
+            Savable, 
+            slice,
+        }
+    }
+
+    return {Savable, sliceSavable, connect}
 }
