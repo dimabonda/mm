@@ -1,4 +1,4 @@
-const ObjectID    = require("mongodb").ObjectID;
+const { MongoClient, ObjectID }  = require("mongodb");
 const {asynchronize, openPromise } = require('./asynchronize')
 
 const mm = db => {
