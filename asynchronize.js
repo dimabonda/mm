@@ -45,18 +45,26 @@ function asynchronize({s, chunkEventName, endEventName, errEventName, countMetho
 
         s.on(endEventName, () => {
             end = true;
+            closeAllEmptyPromises()
             //console.log('END OF STREAM')
         })
 
         if (errEventName)
             s.on(errEventName, () => {
                 end = true;
+                closeAllEmptyPromises()
                 //console.log('ERR OF STREAM')
             })
 
+        const closeAllEmptyPromises  = () => {
+            for (let i in promises){ //when end and chunks are exhausted
+                promises[i].reject(new Error('End Of S')) //reject all left promises
+            }
+        }
+
         if (countMethodName){
             let count = s[countMethodName](true)
-            const checker = count => count <= 0 && (end = true /*, console.log(`COUNT ${count}`) */ )
+            const checker = count => count <= 0 && (end = true , closeAllEmptyPromises()/*, console.log(`COUNT ${count}`)*/  )
             if (count.then && typeof count.then === 'function')
                 count.then(checker)
             else 
@@ -73,10 +81,7 @@ function asynchronize({s, chunkEventName, endEventName, errEventName, countMetho
             promiseCount++;
             yield p; //yield promise outside
         }
-
-        for (let i in promises){ //when end and chunks are exhausted
-            promises[i].reject(new Error('End Of S')) //reject all left promises
-        }
+        //closeAllEmptyPromises()
     }
 }
 
