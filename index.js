@@ -120,7 +120,7 @@ const mm = db => {
                         lastKey: backRefKey} = await getValueByField(backRef, foreignSavable)
 
                     if (backRefValue instanceof Array){
-                        if (!backRefValue.includes(this)){
+                        if (!Savable.existsInArray(backRefValue, this)){
                             backRefValue.push(this)
                         }
                     }
@@ -141,7 +141,9 @@ const mm = db => {
                     let {value, obj, lastKey: key} = await getValueByField(relation, this)
                     const valueAsArray = value instanceof Savable ? [value] : value
                     if (loadRelationAsArray){
-                        const removedRefs = valueAsArray ? loadRelationAsArray.filter(ref => !valueAsArray.includes(ref)) : loadRelationAsArray
+                        const removedRefs = valueAsArray ? 
+                                loadRelationAsArray.filter(ref => !Savable.existsInArray(valueAsArray, ref)) : 
+                                loadRelationAsArray
                         for (const ref of removedRefs){
                             try {
                                 await ref
@@ -241,6 +243,9 @@ const mm = db => {
 
 
 
+        static existsInArray(arr, obj){
+            return arr.filter(item => item._id.toString() === obj._id.toString()).length
+        }
 
         static isSavable(obj){
             return obj && obj._id && obj._class

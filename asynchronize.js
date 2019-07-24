@@ -64,7 +64,11 @@ function asynchronize({s, chunkEventName, endEventName, errEventName, countMetho
 
         if (countMethodName){
             let count = s[countMethodName](true)
-            const checker = count => count <= 0 && (end = true , closeAllEmptyPromises()/*, console.log(`COUNT ${count}`)*/  )
+            const checker = count => 
+                        count <= 0 && 
+                        (end = true , 
+                                closeAllEmptyPromises()
+                            /*, console.log(`COUNT ${count}`)*/  )
             if (count.then && typeof count.then === 'function')
                 count.then(checker)
             else 
