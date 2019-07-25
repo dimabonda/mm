@@ -242,9 +242,18 @@ const mm = db => {
 
 
 
+        static equals(obj1, obj2){
+            if(!obj1._id) return obj1 === obj2
+            if(!obj2._id) return obj1 === obj2
+            return obj1._id.toString() === obj2._id.toString()
+        }
+
+        equals(obj){
+            return Savable.equals(this, obj)
+        }
 
         static existsInArray(arr, obj){
-            let filtered = arr.filter(item => !item._id || !obj._id || item._id.toString() === obj._id.toString())
+            let filtered = arr.filter(item => Savable.equals(item, obj))
             return filtered.length
         }
 
