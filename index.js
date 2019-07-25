@@ -244,7 +244,8 @@ const mm = db => {
 
 
         static existsInArray(arr, obj){
-            return arr.filter(item => item._id.toString() === obj._id.toString()).length
+            let filtered = arr.filter(item => !item._id || !obj._id || item._id.toString() === obj._id.toString())
+            return filtered.length
         }
 
         static isSavable(obj){
