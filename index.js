@@ -283,16 +283,19 @@ const mm = db => {
                         return obj[_class]
                     }
 
+                    const applyCursorCalls = (cursor, calls) =>{
+                        for (let [method, params] of Object.entries(calls)){
+                            if (typeof cursor[method] !== "function"){
+                                throw new SyntaxError(`Wrong cursor method ${method}`)
+                            }
+                            cursor = cursor[method](...params)
+                        }
+                        return cursor;
+                    }
+
                     return  obj[_class] = {
                         * find(query, projection, cursorCalls={}){
-                            let cursor = db.collection(_class).find(query, projection)
-                            for (let [method, params] of Object.entries(cursorCalls)){
-                                if (typeof cursor[method] !== "function"){
-                                    throw new SyntaxError(`Wrong cursor method ${method}`)
-                                }
-
-                                cursor = cursor[method](...params)
-                            }
+                            let cursor = applyCursorCalls(db.collection(_class).find(query, projection), cursorCalls)
                             let cursorGen = asynchronize({s: cursor.stream(), 
                                                           chunkEventName: 'data', 
                                                           endEventName: 'close',
@@ -304,6 +307,10 @@ const mm = db => {
                                     pObj.then(obj => (/*console.log(obj),*/ok(Savable.newSavable(obj, null, false))), 
                                               err => fail(err)))
                             }
+                        },
+                        async count(query, cursorCalls={}){
+                            let cursor = applyCursorCalls(db.collection(_class).find(query, projection), cursorCalls)
+                            return await cursor.count(true)
                         },
                         async findOne(query, projection){
                             let result = await db.collection(_class).findOne(query, projection)
@@ -435,6 +442,10 @@ const mm = db => {
                                         Savable.addClass(originalClass)
                                         yield* iter;
                                     },
+                                    async count(query, cursorCalls={}){
+                                        let permittedQuery = {$and: [SlicedSavable.___permissionQuery('read') ,query]}
+                                        return await Savable.m[_class].count(permittedQuery, cursorCalls)
+                                    },
                                     async findOne(query, projection){
                                         const originalClass = Savable.classes[_class]
                                         Savable.addClass(SlicedSavable.classes[_class])
@@ -453,20 +464,20 @@ const mm = db => {
                 })
             }
 
-                static get defaultPermissions(){
-                        return {
-                                //savable refs, objectid's, words like 'tags' or 'roles'
-                                read: ['owner', 'user'],
-                                write: ['owner', 'admin'],
-                                create: ['user'],
-                                delete: ['admin'],
+            static get defaultPermissions(){
+                return {
+                    //savable refs, objectid's, words like 'tags' or 'roles'
+                    read: ['owner', 'user'],
+                    write: ['owner', 'admin'],
+                    create: ['user'],
+                    delete: ['admin'],
 
-                                /*permission
-                                 * TODO: permissions for read and write permissions
-                                 *
-                                 */
-                        }
+                    /*permission
+                     * TODO: permissions for read and write permissions
+                     *
+                     */
                 }
+            }
         }
 
         return SlicedSavable
