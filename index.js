@@ -294,8 +294,8 @@ const mm = db => {
                     }
 
                     return  obj[_class] = {
-                        * find(query, projection, cursorCalls={}){
-                            let cursor = applyCursorCalls(db.collection(_class).find(query, projection), cursorCalls)
+                        * find(query, cursorCalls={}){
+                            let cursor = applyCursorCalls(db.collection(_class).find(query), cursorCalls)
                             let cursorGen = asynchronize({s: cursor.stream(), 
                                                           chunkEventName: 'data', 
                                                           endEventName: 'close',
@@ -309,11 +309,11 @@ const mm = db => {
                             }
                         },
                         async count(query, cursorCalls={}){
-                            let cursor = applyCursorCalls(db.collection(_class).find(query, projection), cursorCalls)
+                            let cursor = applyCursorCalls(db.collection(_class).find(query), cursorCalls)
                             return await cursor.count(true)
                         },
-                        async findOne(query, projection){
-                            let result = await db.collection(_class).findOne(query, projection)
+                        async findOne(query){
+                            let result = await db.collection(_class).findOne(query)
                             if (result)
                                 return Savable.newSavable(result, null, false)
                             return result
@@ -433,12 +433,12 @@ const mm = db => {
                                 }
 
                                 return  obj[_class] = {
-                                    * find(query, projection, cursorCalls={}){
+                                    * find(query,  cursorCalls={}){
                                         const originalClass = Savable.classes[_class]
                                         Savable.addClass(SlicedSavable.classes[_class])
                                         let permittedQuery = {$and: [SlicedSavable.___permissionQuery('read') ,query]}
                                         //console.log(JSON.stringify(permittedQuery, null, 4))
-                                        let iter = Savable.m[_class].find(permittedQuery, projection, cursorCalls)
+                                        let iter = Savable.m[_class].find(permittedQuery, null, cursorCalls)
                                         Savable.addClass(originalClass)
                                         yield* iter;
                                     },
@@ -446,12 +446,12 @@ const mm = db => {
                                         let permittedQuery = {$and: [SlicedSavable.___permissionQuery('read') ,query]}
                                         return await Savable.m[_class].count(permittedQuery, cursorCalls)
                                     },
-                                    async findOne(query, projection){
+                                    async findOne(query){
                                         const originalClass = Savable.classes[_class]
                                         Savable.addClass(SlicedSavable.classes[_class])
                                             
                                         const permittedQuery = {$and: [SlicedSavable.___permissionQuery('read') ,query]}
-                                        const p = Savable.m[_class].findOne(permittedQuery, projection)
+                                        const p = Savable.m[_class].findOne(permittedQuery)
                                         Savable.addClass(originalClass)
                                         
                                         return await p;
