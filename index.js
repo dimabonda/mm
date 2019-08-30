@@ -136,7 +136,7 @@ const mm = db => {
                         }
                     }
                     if (valueAsArray){
-                        for (const foreignSavable of valueAsArray){
+                        for (const foreignSavable of valueAsArray) if (foreignSavable){
                             await foreignSavable.setRelation(this, relation)
                         }
                     }
@@ -426,7 +426,7 @@ const mm = db => {
             async save(noSync=false){
                 if (!this._id && !this.___permissionCan('create'))
                     throw new ReferenceError(`Permissison denied Create Entity of class ${this._class}`)
-                if (this._id && !this.___permissionCan('write') && !noRefs) //give ability to change backrefs for not permitted records
+                if (this._id && !this.___permissionCan('write'))
                     throw new ReferenceError(`Permissison denied Save Entity ${this._id} of class ${this._class}`)
 
                 if (!this._id){
@@ -434,6 +434,30 @@ const mm = db => {
                     //console.log(typeof this.___owner, this.___owner)
                 }
                 return await super.save(noSync)
+            }
+
+            async setRelation(ref, refRelationName){
+                const ourRelation = ref.__proto__.constructor.relations[refRelationName]
+                const ourArray    = ourRelation instanceof Array 
+                const ourRelationName = ourArray ? ourRelation[0] : ourRelation
+
+                if (!this._id || this.___permissionCan('write') || 
+                    (this.__proto__.constructor.guestRelations.includes(ourRelationName) && this.___permissionCan('read')))
+                        return await super.setRelation(ref, refRelationName)
+
+                throw new ReferenceError(`Permissison denied Set Relation Entity ${this._id} of class ${this._class} ref: ${ref._id} of class ${ref._class}`)
+            }
+
+            async removeRelation(ref, refRelationName){
+                const ourRelation = ref.__proto__.constructor.relations[refRelationName]
+                const ourArray    = ourRelation instanceof Array 
+                const ourRelationName = ourArray ? ourRelation[0] : ourRelation
+
+                if (!this._id || this.___permissionCan('write') || 
+                    (this.__proto__.constructor.guestRelations.includes(ourRelationName) && this.___permissionCan('read')))
+                        return await super.removeRelation(ref, refRelationName)
+
+                throw new ReferenceError(`Permissison denied Remove Relation Entity ${this._id} of class ${this._class} ref: ${ref._id} of class ${ref._class}`)
             }
 
 
@@ -506,6 +530,10 @@ const mm = db => {
                      *
                      */
                 }
+            }
+
+            static get guestRelations(){ //guest relations are accessible to write by setRelation or removeRelation even if no write permission, only with read
+                return []
             }
         }
 
