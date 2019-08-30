@@ -190,6 +190,7 @@ const mm = db => {
 
 
         async setRelation(ref, refRelationName){
+            await this
             const ourRelation = ref.__proto__.constructor.relations[refRelationName]
             const ourArray    = ourRelation instanceof Array 
             const ourRelationName = ourArray ? ourRelation[0] : ourRelation
@@ -218,6 +219,7 @@ const mm = db => {
         }
 
         async removeRelation(ref, refRelationName){ //i. e. this = child, ref = parent object, refRelationName = children in parent
+            await this
             const ourRelation = ref.__proto__.constructor.relations[refRelationName]
             const ourArray    = ourRelation instanceof Array 
             const ourRelationName = ourArray ? ourRelation[0] : ourRelation
@@ -267,6 +269,7 @@ const mm = db => {
 
 
         static equals(obj1, obj2){
+            if (!obj1 || !obj2) return false
             if(!obj1._id) return obj1 === obj2
             if(!obj2._id) return obj1 === obj2
             return obj1._id.toString() === obj2._id.toString()
@@ -437,6 +440,7 @@ const mm = db => {
             }
 
             async setRelation(ref, refRelationName){
+                await this
                 const ourRelation = ref.__proto__.constructor.relations[refRelationName]
                 const ourArray    = ourRelation instanceof Array 
                 const ourRelationName = ourArray ? ourRelation[0] : ourRelation
@@ -449,6 +453,7 @@ const mm = db => {
             }
 
             async removeRelation(ref, refRelationName){
+                await this;
                 const ourRelation = ref.__proto__.constructor.relations[refRelationName]
                 const ourArray    = ourRelation instanceof Array 
                 const ourRelationName = ourArray ? ourRelation[0] : ourRelation
