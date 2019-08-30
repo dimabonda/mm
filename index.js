@@ -96,7 +96,7 @@ const mm = db => {
             return db.collection(this._class)
         }
 
-        async save(noRefs=false, noSync=false){
+        async save(noSync=false){
             if (this.empty) return this;
 
             const syncRelations = async () => {
@@ -114,24 +114,6 @@ const mm = db => {
                     return {value: prev[lastKey], obj: prev, lastKey};
                 }
 
-                //let setBackRef = async (backRef, foreignSavable) => {
-                    //const {value: backRefValue, 
-                            //obj: backRefObj, 
-                        //lastKey: backRefKey} = await getValueByField(backRef, foreignSavable)
-
-                    //if (backRefValue instanceof Array){
-                        //if (!Savable.existsInArray(backRefValue, this)){
-                            //backRefValue.push(this)
-                        //}
-                    //}
-                    //else {
-                        //backRefObj[backRefKey] = this
-                    //}
-                    //noRefs || await foreignSavable.save(true)
-                //}
-
-
-                
                 for (const relation in this.__proto__.constructor.relations){
                     const backRef = this.__proto__.constructor.relations[relation]
 
@@ -150,20 +132,12 @@ const mm = db => {
                             }
                             catch (e) {console.log('SYNC RELATIONS ERROR') }
 
-                            ref.removeRelation(this, relation)
-                            //if (ref[backRef] instanceof Array){
-                                //ref[backRef] = ref[backRef].filter(br => br._id !== this._id)
-                            //}
-                            //else {
-                                //ref[backRef] = null
-                            //}
-                            //noRefs || await ref.save(true)
+                            await ref.removeRelation(this, relation)
                         }
                     }
                     if (valueAsArray){
                         for (const foreignSavable of valueAsArray){
                             await foreignSavable.setRelation(this, relation)
-//                            await setBackRef(backRef, foreignSavable)
                         }
                     }
                 }
@@ -243,7 +217,7 @@ const mm = db => {
             }
         }
 
-        async removeRelation(ref, refRelationName){
+        async removeRelation(ref, refRelationName){ //i. e. this = child, ref = parent object, refRelationName = children in parent
             const ourRelation = ref.__proto__.constructor.relations[refRelationName]
             const ourArray    = ourRelation instanceof Array 
             const ourRelationName = ourArray ? ourRelation[0] : ourRelation
@@ -273,13 +247,7 @@ const mm = db => {
                             await ref
                         }
                         catch (e) {console.log('DELETE SYNC RELATIONS ERROR') }
-                        if (ref[backRef] instanceof Array){
-                            ref[backRef] = ref[backRef].filter(br => br._id !== this._id)
-                        }
-                        else {
-                            ref[backRef] = null
-                        }
-                        await ref.save(true, true)
+                        await ref.removeRelation(this, relation)
                     }
                 }
             }
@@ -455,7 +423,7 @@ const mm = db => {
             }
 
 
-            async save(noRefs=false, noSync=false){
+            async save(noSync=false){
                 if (!this._id && !this.___permissionCan('create'))
                     throw new ReferenceError(`Permissison denied Create Entity of class ${this._class}`)
                 if (this._id && !this.___permissionCan('write') && !noRefs) //give ability to change backrefs for not permitted records
@@ -465,7 +433,7 @@ const mm = db => {
                     this.___owner = userACL[0] //TODO fix objectid troubles 
                     //console.log(typeof this.___owner, this.___owner)
                 }
-                return await super.save(noRefs, noSync)
+                return await super.save(noSync)
             }
 
 
