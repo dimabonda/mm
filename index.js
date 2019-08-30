@@ -136,7 +136,7 @@ const mm = db => {
                         }
                     }
                     if (valueAsArray){
-                        for (const foreignSavable of valueAsArray) if (foreignSavable){
+                        for (const foreignSavable of valueAsArray) if (foreignSavable && !Savable.existsInArray(loadRelationAsArray, foreignSavable)){
                             await foreignSavable.setRelation(this, relation)
                         }
                     }
