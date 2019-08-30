@@ -17,7 +17,7 @@ const mm = db => {
             }
         }
 
-        saveRelations(){
+        backupRelations(){
             this._loadRelations = {};
             for (const relation in this.__proto__.constructor.relations){
                 this._loadRelations[relation] = this[relation] instanceof Array ? [...this[relation]] : this[relation]
@@ -47,7 +47,7 @@ const mm = db => {
 
             convertSavables(this)
 
-            this.saveRelations()
+            this.backupRelations()
             //this._id = obj._id
         }
 
@@ -114,21 +114,21 @@ const mm = db => {
                     return {value: prev[lastKey], obj: prev, lastKey};
                 }
 
-                let setBackRef = async (backRef, foreignSavable) => {
-                    const {value: backRefValue, 
-                            obj: backRefObj, 
-                        lastKey: backRefKey} = await getValueByField(backRef, foreignSavable)
+                //let setBackRef = async (backRef, foreignSavable) => {
+                    //const {value: backRefValue, 
+                            //obj: backRefObj, 
+                        //lastKey: backRefKey} = await getValueByField(backRef, foreignSavable)
 
-                    if (backRefValue instanceof Array){
-                        if (!Savable.existsInArray(backRefValue, this)){
-                            backRefValue.push(this)
-                        }
-                    }
-                    else {
-                        backRefObj[backRefKey] = this
-                    }
-                    noRefs || await foreignSavable.save(true)
-                }
+                    //if (backRefValue instanceof Array){
+                        //if (!Savable.existsInArray(backRefValue, this)){
+                            //backRefValue.push(this)
+                        //}
+                    //}
+                    //else {
+                        //backRefObj[backRefKey] = this
+                    //}
+                    //noRefs || await foreignSavable.save(true)
+                //}
 
 
                 
@@ -149,18 +149,21 @@ const mm = db => {
                                 await ref
                             }
                             catch (e) {console.log('SYNC RELATIONS ERROR') }
-                            if (ref[backRef] instanceof Array){
-                                ref[backRef] = ref[backRef].filter(br => br._id !== this._id)
-                            }
-                            else {
-                                ref[backRef] = null
-                            }
-                            noRefs || await ref.save(true)
+
+                            ref.removeRelation(this, relation)
+                            //if (ref[backRef] instanceof Array){
+                                //ref[backRef] = ref[backRef].filter(br => br._id !== this._id)
+                            //}
+                            //else {
+                                //ref[backRef] = null
+                            //}
+                            //noRefs || await ref.save(true)
                         }
                     }
                     if (valueAsArray){
                         for (const foreignSavable of valueAsArray){
-                            await setBackRef(backRef, foreignSavable)
+                            await foreignSavable.setRelation(this, relation)
+//                            await setBackRef(backRef, foreignSavable)
                         }
                     }
                 }
@@ -175,7 +178,7 @@ const mm = db => {
                             if (!(obj[key]._id)){
                                 await obj[key].save().catch(err => console.log('ERR', err))
                             }
-                            result[key] = {_id: obj[key]._id, _class: obj[key]._class}
+                            result[key] = obj[key].shortData()
                         }
                         else {
                             result[key] = await recursiveSlicer(obj[key])
@@ -200,8 +203,61 @@ const mm = db => {
             }
 
             await syncRelations()
-            this.saveRelations()
+            this.backupRelations()
             return this
+        }
+
+        // method to get ref snapshot (empty object with some data). gives optimizations in related objects
+        // place for permission, owner, probably short relations 
+        shortData(){
+            const {_id, _class} = this
+            return { _id, _class }
+        }
+
+
+        async setRelation(ref, refRelationName){
+            const ourRelation = ref.__proto__.constructor.relations[refRelationName]
+            const ourArray    = ourRelation instanceof Array 
+            const ourRelationName = ourArray ? ourRelation[0] : ourRelation
+
+            let shortQuery = {[ourRelationName]: ref.shortData()}
+            let query;
+
+            if (ourArray || this[ourRelationName] instanceof Array){
+                this[ourRelationName] = this[ourRelationName] || []
+                this[ourRelationName] = this[ourRelationName] instanceof Array ? this[ourRelationName] : [this[ourRelationName]]
+
+                Savable.existsInArray(this[ourRelationName], ref) ||  this[ourRelationName].push(ref)
+                Savable.existsInArray(this[ourRelationName], ref) ||  this._loadRelations[ourRelationName].push(ref)
+
+                query = {$addToSet: shortQuery}
+            }
+            else {
+                this[ourRelationName] = this._loadRelations[ourRelationName] = ref
+                query = {$set: shortQuery}
+            }
+
+            if (this._id){
+                console.log('SET RELATION:', query)
+                await this.collection.updateOne({_id: this._id},  query).catch(err => console.log('UPDATE ERR', err))
+            }
+        }
+
+        async removeRelation(ref, refRelationName){
+            const ourRelation = ref.__proto__.constructor.relations[refRelationName]
+            const ourArray    = ourRelation instanceof Array 
+            const ourRelationName = ourArray ? ourRelation[0] : ourRelation
+
+
+            if (this._id){
+                const query = ourArray ? {$pull: {[ourRelationName]: ref.shortData()}}
+                                       : {$set:  {[ourRelationName]: null}}
+                console.log('REMOVE RELATION:', query)
+                await this.collection.updateOne({_id: this._id},  query).catch(err => console.log('UPDATE ERR', err))
+            }
+
+            (this[ourRelationName] instanceof Array) ? this._loadRelations[ourRelationName] = this[ourRelationName] = this[ourRelationName].filter(ourRef => !ourRef.equals(ref))
+                                                     : this[ourRelationName] = null;
         }
 
         async delete(noRefs=false){
@@ -335,6 +391,11 @@ const mm = db => {
             //if person has children, it can have backRef father or mother depending on sex:
             //return {
             //    children: this.sex === 'male' ? 'father': 'mother'
+            //}
+            //
+            //return {
+            //  parent: ["children"],
+            //  notebooks: "owner"
             //}
             return {}
         }
