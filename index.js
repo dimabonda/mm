@@ -115,29 +115,32 @@ const mm = db => {
                 }
 
                 for (const relation in this.__proto__.constructor.relations){
-                    const backRef = this.__proto__.constructor.relations[relation]
+                    let backRef = this.__proto__.constructor.relations[relation]
+                    if (Array.isArray(backRef)) backRef = backRef[0]
 
                     const loadRelation = this._loadRelations[relation]
                     const loadRelationAsArray = loadRelation instanceof Savable ? [loadRelation] : loadRelation
 
                     let {value, obj, lastKey: key} = await getValueByField(relation, this)
                     const valueAsArray = value instanceof Savable ? [value] : value
-                    if (loadRelationAsArray){
+                    if (loadRelationAsArray){ //check for removed Refs
                         const removedRefs = valueAsArray ? 
                                 loadRelationAsArray.filter(ref => !Savable.existsInArray(valueAsArray, ref)) : 
                                 loadRelationAsArray
                         for (const ref of removedRefs){
-                            try {
-                                await ref
-                            }
-                            catch (e) {console.log('SYNC RELATIONS ERROR') }
+                            try { await ref } catch (e) {console.log('SYNC RELATIONS REMOVE ERROR') }
 
                             await ref.removeRelation(this, relation)
                         }
                     }
-                    if (valueAsArray){
-                        for (const foreignSavable of valueAsArray) if (foreignSavable && !Savable.existsInArray(loadRelationAsArray, foreignSavable)){
-                            await foreignSavable.setRelation(this, relation)
+                    if (valueAsArray){ //check for added refs
+                        for (const foreignSavable of valueAsArray) {
+                            try { await foreignSavable } catch (e) {console.log('SYNC RELATIONS ADD ERROR') }
+
+                            let foreignLoadRelationsAsArray = Savable.arrize(foreignSavable._loadRelations[backRef])
+                            if (foreignSavable && !Savable.existsInArray(foreignLoadRelationsAsArray, this)){
+                                await foreignSavable.setRelation(this, relation)
+                            }
                         }
                     }
                 }
@@ -202,15 +205,20 @@ const mm = db => {
                 this[ourRelationName] = this[ourRelationName] || []
                 this[ourRelationName] = this[ourRelationName] instanceof Array ? this[ourRelationName] : [this[ourRelationName]]
 
-                Savable.existsInArray(this[ourRelationName], ref) ||  this[ourRelationName].push(ref)
-                Savable.existsInArray(this[ourRelationName], ref) ||  this._loadRelations[ourRelationName].push(ref)
+                if (Savable.existsInArray(this[ourRelationName], ref)) {
+                    this[ourRelationName].push(ref)
+                    this._id && this._loadRelations[ourRelationName].push(ref)
+                }
 
                 query = {$addToSet: shortQuery}
             }
             else {
-                this[ourRelationName] = this._loadRelations[ourRelationName] = ref
+                this[ourRelationName] =  ref
+                this._id && (this._loadRelations[ourRelationName] = ref)
                 query = {$set: shortQuery}
             }
+
+            console.log('SET RELATION:', query)
 
             if (this._id){
                 console.log('SET RELATION:', query)
@@ -267,6 +275,11 @@ const mm = db => {
 
 
 
+        static arrize(value){
+            if (Array.isArray(value)) return value
+            if (value) return [value]
+            return []
+        }
 
         static equals(obj1, obj2){
             if (!obj1 || !obj2) return false
@@ -280,6 +293,8 @@ const mm = db => {
         }
 
         static existsInArray(arr, obj){
+            if (!Array.isArray(arr)) return false
+
             let filtered = arr.filter(item => Savable.equals(item, obj))
             return filtered.length
         }

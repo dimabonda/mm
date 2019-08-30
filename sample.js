@@ -68,30 +68,30 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
 
     await person.save()
 
-    //console.log(person.children.length)
-    //person.children.pop();
-    //await person.save()
-    //console.log(person.children.length)
-
-    let orphan = new User({
-        name: 'Left',
-        surname: 'Guy',
-        parent: person //check for push into and $addToSet
-    })
-    await orphan.save()
-
-    person.parent = orphan //check for arrize
-
-    await person.save()
-
-    console.log(orphan.children)
-
-    person.parent = null //check for arrize
-    await person.save()
-    person.children.pop();
-    person.children.pop();
     console.log(person.children.length)
+    person.children.pop();
     await person.save()
+    console.log(person.children.length)
+
+    //let orphan = new User({
+        //name: 'Left',
+        //surname: 'Guy',
+        //parent: person //check for push into and $addToSet
+    //})
+    //await orphan.save()
+
+    //person.parent = orphan //check for arrize
+
+    //await person.save()
+
+    //console.log(orphan.children)
+
+    //person.parent = null //check for arrize
+    //await person.save()
+    //person.children.pop();
+    //person.children.pop();
+    //console.log(person.children.length)
+    //await person.save()
     
 
 
