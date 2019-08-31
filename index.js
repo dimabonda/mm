@@ -326,6 +326,7 @@ const mm = db => {
                     }
 
                     const applyCursorCalls = (cursor, calls) =>{
+                        if (!calls) return cursor;
                         for (let [method, params] of Object.entries(calls)){
                             if (typeof cursor[method] !== "function"){
                                 throw new SyntaxError(`Wrong cursor method ${method}`)
