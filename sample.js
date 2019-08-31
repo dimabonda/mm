@@ -69,8 +69,8 @@ const delay       = ms => new Promise(r => setTimeout(r.bind(ms), ms))
     await person.save()
 
     console.log(person.children.length)
-    person.children.pop();
-    await person.save()
+    person.children[0].parent = null;
+    await person.children[0].save()
     console.log(person.children.length)
 
     //let orphan = new User({
