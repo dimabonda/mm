@@ -512,7 +512,7 @@ const mm = db => {
                                         Savable.addClass(SlicedSavable.classes[_class])
                                         let permittedQuery = {$and: [SlicedSavable.___permissionQuery('read') ,query]}
                                         //console.log(JSON.stringify(permittedQuery, null, 4))
-                                        let iter = Savable.m[_class].find(permittedQuery, null, cursorCalls)
+                                        let iter = Savable.m[_class].find(permittedQuery, cursorCalls)
                                         Savable.addClass(originalClass)
                                         yield* iter;
                                     },
