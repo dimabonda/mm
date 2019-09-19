@@ -31,7 +31,7 @@ const mm = db => {
                 for (const key in obj){
                     if (Savable.isSavable(obj[key])){
                         obj[key] = (this._ref && 
-                                    obj[key]._id.toString() == this._ref._id.toString()) ? 
+                                    Savable.equals(obj[key], this._ref) ? 
                                                        this._ref : 
                                                        Savable.newSavable(obj[key], this)
                     }
