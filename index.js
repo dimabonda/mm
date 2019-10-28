@@ -422,6 +422,7 @@ const mm = db => {
                 const acl = (permissions && 
                                 permissions[permission] || 
                                     this.__proto__.constructor.defaultPermissions[permission]).map(tag => tag.toString())
+                if (!this._id) return true; //if new entity you can anything
                 if (acl.includes('owner') && obj.___owner && userACL.includes(obj.___owner.toString())){
                     return true
                 }
