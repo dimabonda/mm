@@ -338,6 +338,7 @@ const mm = db => {
 
                     return  obj[_class] = {
                         * find(query, cursorCalls={}){
+                            console.log(query)
                             let cursor = applyCursorCalls(db.collection(_class).find(query), cursorCalls)
                             let cursorGen = asynchronize({s: cursor.stream(), 
                                                           chunkEventName: 'data', 
