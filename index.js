@@ -444,7 +444,6 @@ const mm = db => {
 
 
             async save(noSync=false){
-                console.log(userACL)
                 if (!this._id && !this.___permissionCan('create'))
                     throw new ReferenceError(`Permissison denied Create Entity of class ${this._class}`)
                 if (this._id && !this.___permissionCan('write'))
