@@ -1,6 +1,6 @@
 # mm
 
-(MemMongo - transparent engine for objects graph storage in mongo)[http://doc.a-level.com.ua/asmer-memmongo]
+[MemMongo - transparent engine for objects graph storage in mongo](http://doc.a-level.com.ua/asmer-memmongo)
 ===
 
 `DONE` Proof-Of-Concept
