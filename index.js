@@ -445,9 +445,9 @@ const mm = db => {
 
             async save(noSync=false){
                 if (!this._id && !this.___permissionCan('create'))
-                    throw new ReferenceError(`Permissison denied Create Entity of class ${this._class}`)
+                    throw new ReferenceError(`Permission denied Create Entity of class ${this._class}`)
                 if (this._id && !this.___permissionCan('write'))
-                    throw new ReferenceError(`Permissison denied Save Entity ${this._id} of class ${this._class}`)
+                    throw new ReferenceError(`Permission denied Save Entity ${this._id} of class ${this._class}`)
 
                 if (!this._id){
                     this.___owner = userACL[0] //TODO fix objectid troubles 
@@ -466,7 +466,7 @@ const mm = db => {
                     (this.__proto__.constructor.guestRelations.includes(ourRelationName) && this.___permissionCan('read')))
                         return await super.setRelation(ref, refRelationName)
 
-                throw new ReferenceError(`Permissison denied Set Relation Entity ${this._id} of class ${this._class} ref: ${ref._id} of class ${ref._class}`)
+                throw new ReferenceError(`Permission denied Set Relation Entity ${this._id} of class ${this._class} ref: ${ref._id} of class ${ref._class}`)
             }
 
             async removeRelation(ref, refRelationName){
@@ -479,13 +479,13 @@ const mm = db => {
                     (this.__proto__.constructor.guestRelations.includes(ourRelationName) && this.___permissionCan('read')))
                         return await super.removeRelation(ref, refRelationName)
 
-                throw new ReferenceError(`Permissison denied Remove Relation Entity ${this._id} of class ${this._class} ref: ${ref._id} of class ${ref._class}`)
+                throw new ReferenceError(`Permission denied Remove Relation Entity ${this._id} of class ${this._class} ref: ${ref._id} of class ${ref._class}`)
             }
 
 
             async delete(noRefs=false){
                 if (!this.___permissionCan('delete'))
-                    throw new ReferenceError(`Permissison denied Delete Entity ${this._id} of class ${this._class}`)
+                    throw new ReferenceError(`Permission denied Delete Entity ${this._id} of class ${this._class}`)
                 return await super.delete(noRefs)
             }
 
