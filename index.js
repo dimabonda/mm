@@ -68,7 +68,9 @@ const mm = db => {
 
                     this.collection.findOne(this._id).then( data => {
                         if (!data){
-                            err(new ReferenceError('Document Not Found'))
+                            let error = new ReferenceError('Document Not Found')
+                            if (typeof err === 'function') err(error)
+                            else throw error
                         }
                         else {
                             delete this.then
