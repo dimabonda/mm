@@ -70,7 +70,7 @@ const mm = db => {
                         if (!data){
                             let error = new ReferenceError('Document Not Found')
                             if (typeof err === 'function') err(error)
-                            else throw error
+                            else promise.reject(error)
                         }
                         else {
                             delete this.then
