@@ -3,25 +3,14 @@ const {asynchronize, openPromise } = require('./asynchronize')
 
 const mm = db => {
     class Savable {
-        constructor(obj, ref, empty=false){
-            this._id    = null
-            this._ref   = ref
-            this._class = this.__proto__.constructor.name
-            this._empty = true
-
-            Savable.addClass(this.__proto__.constructor)
-
-            if (obj){
-                this.populate(obj)
-                this._empty = empty
-            }
-        }
 
         backupRelations(){
             this._loadRelations = {};
             for (const relation in this.__proto__.constructor.relations){
                 this._loadRelations[relation] = this[relation] instanceof Array ? [...this[relation]] : this[relation]
             }
+
+            console.log('DIFF SHOW')
         }
 
 
@@ -575,8 +564,7 @@ async function connect(dbName, dsn="mongodb://localhost:27017/"){
     const mongoClient = new MongoClient(dsn, { useNewUrlParser: true });
     const client      = await mongoClient.connect()
     const db          = client.db(dbName)
-    const Savable     = mm(db).Savable
-    const slice       = mm(db).sliceSavable 
+    const {Savable, sliceSavable: slice}     = mm(db)
 
     return {
         Savable, 
