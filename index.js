@@ -309,8 +309,8 @@ const mm = db => {
         }
 
 
-        static get m(){
-            return new Proxy({}, {
+        static get m(){ 
+            return Savable._m = (Savable._m || (new Proxy({}, {
                 get(obj, _class){
                     if (_class in obj){
                         return obj[_class]
@@ -357,7 +357,7 @@ const mm = db => {
 
                 set(obj, propName, value){
                 }
-            })
+            })))
         }
 
         static get relations(){ 
@@ -492,7 +492,7 @@ const mm = db => {
                 }
 
             static get m() {
-                return new Proxy({}, {
+                return SlicedSavable._m = (SlicedSavable._m || (new Proxy({}, {
                         get(obj, _class){
                                 if (_class in obj){
                                         return obj[_class]
@@ -527,7 +527,7 @@ const mm = db => {
 
                         set(obj, propName, value){
                         }
-                })
+                })))
             }
 
             static get defaultPermissions(){
