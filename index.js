@@ -3,6 +3,19 @@ const {asynchronize, openPromise } = require('./asynchronize')
 
 const mm = db => {
     class Savable {
+        constructor(obj, ref, empty=false){
+            this._id    = null
+            this._ref   = ref
+            this._class = this.__proto__.constructor.name
+            this._empty = true
+
+            Savable.addClass(this.__proto__.constructor)
+
+            if (obj){
+                this.populate(obj)
+                this._empty = empty
+            }
+        }
 
         backupRelations(){
             this._loadRelations = {};
@@ -329,6 +342,7 @@ const mm = db => {
 
                     return  obj[_class] = {
                         * find(query, cursorCalls={}){
+                            //console.log(query)
                             let cursor = applyCursorCalls(db.collection(_class).find(query), cursorCalls)
                             let cursorGen = asynchronize({s: cursor.stream(), 
                                                           chunkEventName: 'data', 
