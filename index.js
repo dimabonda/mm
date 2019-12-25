@@ -22,8 +22,6 @@ const mm = db => {
             for (const relation in this.__proto__.constructor.relations){
                 this._loadRelations[relation] = this[relation] instanceof Array ? [...this[relation]] : this[relation]
             }
-
-            console.log('DIFF SHOW')
         }
 
 
