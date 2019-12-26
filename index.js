@@ -321,7 +321,7 @@ const mm = db => {
 
 
         static get m(){ 
-            return Savable._m = (new Proxy({}, {
+            return (new Proxy({}, {
                 get(obj, _class){
                     if (_class in obj){
                         return obj[_class]
