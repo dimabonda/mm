@@ -99,8 +99,8 @@ const mm = db => {
         }
 
         async save(noSync=false){
-            if (this.validate && !this.validate()){
-                throw new SyntaxError(`validation error entity ${this._id} of class ${this.constructor.name} (${this.name || this.key})`)
+            if (this.validate && !(await this.validate())){
+                throw new SyntaxError(`validation error on entity ${this._id} of class ${this.constructor.name} (${this.name || this.key}) save`)
             }
             if (this.empty) return this;
 
