@@ -99,6 +99,9 @@ const mm = db => {
         }
 
         async save(noSync=false){
+            if (this.validate && !this.validate()){
+                throw new SyntaxError(`validation error entity ${this._id} of class ${this.constructor.name} (${this.name || this.key})`)
+            }
             if (this.empty) return this;
 
             const syncRelations = async () => {
@@ -207,7 +210,7 @@ const mm = db => {
                 this[ourRelationName] = this[ourRelationName] || []
                 this[ourRelationName] = this[ourRelationName] instanceof Array ? this[ourRelationName] : [this[ourRelationName]]
 
-                if (Savable.existsInArray(this[ourRelationName], ref)) {
+                if (!Savable.existsInArray(this[ourRelationName], ref)) {
                     this[ourRelationName].push(ref)
                     this._id && this._loadRelations[ourRelationName].push(ref)
                 }
