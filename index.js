@@ -212,7 +212,9 @@ const mm = db => {
 
                 if (!Savable.existsInArray(this[ourRelationName], ref)) {
                     this[ourRelationName].push(ref)
-                    this._id && this._loadRelations[ourRelationName].push(ref)
+                    if (this._id && this._loadRelations[ourRelationName] instanceof Array){
+                        this._loadRelations[ourRelationName].push(ref)
+                    }
                 }
 
                 query = {$addToSet: shortQuery}
