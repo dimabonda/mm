@@ -445,7 +445,7 @@ const mm = db => {
             populate(obj){ //place to check read permission
                 //console.log(obj)
                 if (!this.___permissionCan('read', obj.___permissions, obj)){
-                    throw new ReferenceError(`No Access To Entity ${this._id} of class ${this._class}`)
+                    throw new ReferenceError(`No Access To Entity ${this._id} of class ${this._class} for acl ${userACL}`)
                 }
                 super.populate(obj)
             }
